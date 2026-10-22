@@ -1,0 +1,811 @@
+@page "/product/{Id:int}"
+@inject ProductService Products
+@inject OrderService Orders
+@inject OfferService Offers
+@inject TradeService Trades
+@inject WishlistService Wishlist
+@inject ReviewService Reviews
+@inject ReportService Reports
+@inject DemoSession Session
+@inject NavigationManager Nav
+
+@if (product is null)
+{
+    <PageTitle>Listing unavailable — ReTrade</PageTitle>
+
+    <div class="state-box">
+        <div class="state-icon" aria-hidden="true">⚠️</div>
+        <div class="state-title">Listing not found</div>
+        <p class="state-text">
+            We couldn't load this listing. It may have been removed, sold, or the URL is invalid.
+        </p>
+        <div class="state-actions">
+            <button class="btn btn-primary" @onclick="Retry">Try again</button>
+            <a class="btn btn-outline" href="marketplace">Back to marketplace</a>
+            <a class="btn btn-ghost" href="">Go to home</a>
+        </div>
+    </div>
+}
+else
+{
+    <PageTitle>@product.Title — ReTrade</PageTitle>
+
+    <div class="page-head">
+        <div>
+            <a class="section-link" href="marketplace">← Back to marketplace</a>
+            <h1 style="margin-top:.5rem">@product.Title</h1>
+            <div class="badge-row">
+                <span class="badge badge-condition">@MarketFormat.Condition(product.Condition)</span>
+                @if (product.TradeAvailable && product.Status == ProductStatus.Active)
+                {
+                    <span class="badge badge-trade">Trade available</span>
+                }
+                @if (product.IsNegotiable && product.Status == ProductStatus.Active)
+                {
+                    <span class="badge badge-negotiable">Negotiable</span>
+                }
+                @if (product.Status != ProductStatus.Active)
+                {
+                    <span class="badge badge-sold">@MarketFormat.Status(product.Status)</span>
+                }
+                @if (product.IsSeed)
+                {
+                    <span class="badge badge-demo">Demo listing</span>
+                }
+            </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; align-items:center">
+            <button type="button" 
+                    class="btn btn-outline @(isWishlisted ? "active-wishlist" : "")" 
+                    @onclick="ToggleWishlist"
+                    title="@(isWishlisted ? "Remove from wishlist" : "Add to wishlist")">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="@(isWishlisted ? "#dc2626" : "none")" stroke="@(isWishlisted ? "#dc2626" : "currentColor")" stroke-width="2" style="margin-right:0.3rem">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+                @(isWishlisted ? "Saved" : "Save")
+            </button>
+            <button type="button" class="btn btn-ghost" @onclick="OpenReportModal" title="Report this listing">
+                🚩 Report
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusFeedbackMessage))
+    {
+        <div class="alert alert-success" role="alert">
+            @statusFeedbackMessage
+        </div>
+    }
+
+    <div class="detail-layout">
+        <!-- Left Column: Gallery, Description, Pickup Location -->
+        <div>
+            <div class="detail-hero">
+                @if (!string.IsNullOrWhiteSpace(activeImage))
+                {
+                    <img src="@activeImage" alt="@product.Title" />
+                }
+                else
+                {
+                    <span class="thumb-letter" aria-hidden="true">@Initial</span>
+                }
+            </div>
+
+            @if (product.AllImages.Count > 1)
+            {
+                <div class="gallery-thumbs" style="display:flex; gap:0.5rem; margin-top:0.75rem; overflow-x:auto; padding-bottom:0.25rem">
+                    @foreach (var img in product.AllImages)
+                    {
+                        <button type="button" 
+                                class="thumb-btn @(activeImage == img ? "active" : "")" 
+                                style="border:2px solid @(activeImage == img ? "var(--brand)" : "#cbd5e1"); border-radius:8px; padding:0; background:none; cursor:pointer; width:64px; height:64px; overflow:hidden; flex-shrink:0"
+                                @onclick="() => activeImage = img">
+                            <img src="@img" alt="Thumbnail" style="width:100%; height:100%; object-fit:cover" />
+                        </button>
+                    }
+                </div>
+            }
+
+            <div class="detail-panel" style="margin-top:1.25rem">
+                <h2>Item Description</h2>
+                <p style="margin-bottom:0; white-space:pre-line">@product.Description</p>
+            </div>
+
+            <div class="detail-panel" style="margin-top:1.25rem">
+                <h2>Pickup Location</h2>
+                <p style="margin-bottom:0">
+                    <strong>@MarketFormat.Place(product)</strong><br />
+                    <span class="muted">Only city and state are publicly displayed to ensure safety and privacy.</span>
+                </p>
+            </div>
+
+            <!-- Seller Profile & Reviews Panel -->
+            <div class="detail-panel" style="margin-top:1.25rem">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem">
+                    <h2>Seller Details & Reputation</h2>
+                    <a class="section-link" href="seller/@product.SellerId">View Seller Profile →</a>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem">
+                    <div style="width:48px; height:48px; border-radius:50%; background:var(--brand-soft); color:var(--brand); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.2rem">
+                        @SellerInitial
+                    </div>
+                    <div>
+                        <div style="font-weight:700; font-size:1.05rem">@Session.NameFor(product.SellerId)</div>
+                        <div class="muted" style="font-size:0.88rem">
+                            <span>@MarketFormat.Place(product)</span>
+                            @if (sellerRating.Count > 0)
+                            {
+                                <span style="margin-left:0.5rem; color:#d97706; font-weight:600">
+                                    ★ @sellerRating.Average.ToString("0.0") (@sellerRating.Count @(sellerRating.Count == 1 ? "review" : "reviews"))
+                                </span>
+                            }
+                            else
+                            {
+                                <span style="margin-left:0.5rem; color:var(--muted)">• New seller (No reviews yet)</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (sellerReviews.Count > 0)
+                {
+                    <h3 style="font-size:0.95rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted); margin-top:1rem; margin-bottom:0.75rem">
+                        Recent Feedback from Buyers
+                    </h3>
+                    <div style="display:grid; gap:0.75rem">
+                        @foreach (var rev in sellerReviews.Take(3))
+                        {
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem">
+                                    <span style="font-weight:600; font-size:0.9rem">@rev.ReviewerName</span>
+                                    <span style="color:#d97706; font-size:0.9rem">@(new string('★', rev.Rating))</span>
+                                </div>
+                                <p style="margin-bottom:0; font-size:0.88rem; color:#334155">@rev.Comment</p>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Right Column: Price & Actions -->
+        <div>
+            <div class="detail-panel">
+                <span class="price">@MarketFormat.Inr(product.Price)</span>
+                @if (product.IsNegotiable && product.Status == ProductStatus.Active)
+                {
+                    <span class="price-note">price is negotiable</span>
+                }
+
+                <dl class="kv" style="margin-top:1rem">
+                    <dt>Condition</dt>
+                    <dd>@MarketFormat.Condition(product.Condition)</dd>
+
+                    <dt>Category</dt>
+                    <dd>@product.Category</dd>
+
+                    <dt>Seller</dt>
+                    <dd>@Session.NameFor(product.SellerId)</dd>
+
+                    <dt>Listed on</dt>
+                    <dd>@MarketFormat.When(product.CreatedAt)</dd>
+                </dl>
+            </div>
+
+            <div class="detail-panel" style="margin-top:1.25rem">
+                <h2>Purchase & Deal Actions</h2>
+
+                @if (completedOrder is not null)
+                {
+                    <div class="alert alert-success" role="alert" style="border-left:4px solid #14663a; padding:1.1rem; margin-bottom:1rem">
+                        <div style="font-weight:700; font-size:1.1rem; color:#14663a; margin-bottom:0.35rem">
+                            🎉 You have bought this item!
+                        </div>
+                        <p style="margin-bottom:0.6rem; font-size:0.95rem">
+                            Your purchase for <strong>@completedOrder.ProductTitle</strong> has been confirmed and saved to the database.
+                        </p>
+                        <div style="font-size:0.86rem; color:#1f5135; margin-bottom:0.85rem">
+                            <strong>Order #@completedOrder.Id</strong> • Paid <strong>@MarketFormat.Inr(completedOrder.Amount)</strong> • @MarketFormat.Payment(completedOrder.Payment)
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                            <a class="btn btn-primary" href="dashboard">View in Dashboard</a>
+                            <a class="btn btn-outline" href="marketplace">Browse More Items</a>
+                        </div>
+                    </div>
+                }
+                else if (myPreviousOrder is not null)
+                {
+                    <div class="alert alert-success" role="alert">
+                        <strong>✓ You previously purchased this item!</strong>
+                        <div style="margin-top:0.4rem; font-size:0.88rem">
+                            Order #@myPreviousOrder.Id on @MarketFormat.When(myPreviousOrder.CreatedAt) via @MarketFormat.Payment(myPreviousOrder.Payment).
+                        </div>
+                        <div style="margin-top:0.6rem">
+                            <a class="btn btn-primary btn-sm" href="dashboard">Go to Purchases →</a>
+                        </div>
+                    </div>
+                }
+                else if (product.Status != ProductStatus.Active)
+                {
+                    <div class="alert alert-info">
+                        This listing is <strong>@MarketFormat.Status(product.Status).ToLowerInvariant()</strong> and can't be bought, offered or traded.
+                    </div>
+                }
+                else if (product.SellerId == Session.Current.Id)
+                {
+                    <div class="alert alert-info" style="margin-bottom:1rem">
+                        This is your own listing. You can update or manage it below:
+                    </div>
+                    <div class="action-stack">
+                        <a class="btn btn-primary btn-block" href="listing/edit/@product.Id">
+                            ✏️ Edit Listing Details
+                        </a>
+                        <button class="btn btn-outline btn-block" @onclick="MarkAsSoldByOwner">
+                            ✓ Mark as Sold
+                        </button>
+                        <a class="btn btn-ghost btn-block" href="dashboard">
+                            Manage in Dashboard
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    @if (!showCheckout)
+                    {
+                        <div class="action-stack">
+                            <button class="btn btn-primary btn-lg btn-block" @onclick="OpenCheckout">
+                                ⚡ Buy Now (@MarketFormat.Inr(product.Price))
+                            </button>
+
+                            @if (product.IsNegotiable)
+                            {
+                                <button class="btn btn-outline btn-block" @onclick="OpenOfferModal">
+                                    💬 Make an Offer
+                                </button>
+                            }
+
+                            @if (product.TradeAvailable)
+                            {
+                                <button class="btn btn-accent btn-block" @onclick="OpenTradeModal">
+                                    🔄 Propose an Item Trade
+                                </button>
+                            }
+                        </div>
+                        <p class="muted" style="font-size:0.82rem; margin-top:0.65rem; margin-bottom:0; text-align:center">
+                            Direct peer-to-peer C2C transaction • Connect directly with the seller
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="checkout-box" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:1.1rem">
+                            <h3 style="font-size:1.05rem; margin-bottom:0.75rem; display:flex; justify-content:space-between">
+                                <span>Confirm Purchase</span>
+                                <span style="color:var(--brand)">@MarketFormat.Inr(product.Price)</span>
+                            </h3>
+
+                            @if (!string.IsNullOrEmpty(checkoutError))
+                            {
+                                <div class="alert alert-error" style="padding:0.55rem 0.8rem; font-size:0.88rem; margin-bottom:0.75rem">
+                                    @checkoutError
+                                </div>
+                            }
+
+                            <div class="field" style="margin-bottom:0.65rem">
+                                <label class="field-label" for="co-name">Recipient Name</label>
+                                <input id="co-name" class="form-control" @bind="buyerName" />
+                            </div>
+
+                            <div class="field" style="margin-bottom:0.65rem">
+                                <label class="field-label" for="co-addr">Shipping Address</label>
+                                <input id="co-addr" class="form-control" placeholder="House/Flat, Street, Landmark" @bind="address" />
+                            </div>
+
+                            <div class="field-row" style="margin-bottom:0.65rem">
+                                <div class="field" style="margin-bottom:0">
+                                    <label class="field-label" for="co-city">City</label>
+                                    <input id="co-city" class="form-control" @bind="city" />
+                                </div>
+                                <div class="field" style="margin-bottom:0">
+                                    <label class="field-label" for="co-state">State</label>
+                                    <input id="co-state" class="form-control" @bind="state" />
+                                </div>
+                            </div>
+
+                            <div class="field-row" style="margin-bottom:0.65rem">
+                                <div class="field" style="margin-bottom:0">
+                                    <label class="field-label" for="co-pin">Pincode</label>
+                                    <input id="co-pin" class="form-control" maxlength="6" @bind="pincode" />
+                                </div>
+                                <div class="field" style="margin-bottom:0">
+                                    <label class="field-label" for="co-phone">Phone</label>
+                                    <input id="co-phone" class="form-control" maxlength="10" @bind="phone" />
+                                </div>
+                            </div>
+
+                            <div class="field" style="margin-bottom:0.9rem">
+                                <label class="field-label" for="co-payment">Payment Method</label>
+                                <select id="co-payment" class="form-select" @bind="paymentMethod">
+                                    <option value="@PaymentMethod.CashOnDelivery">Cash on Delivery (Pay upon delivery)</option>
+                                    <option value="@PaymentMethod.Mock">Mock Instant Pay (College Demo - no card needed)</option>
+                                </select>
+                            </div>
+
+                            <div style="display:grid; gap:0.5rem">
+                                <button class="btn btn-primary btn-lg btn-block" disabled="@submittingOrder" @onclick="ConfirmOrder">
+                                    @if (submittingOrder)
+                                    {
+                                        <span class="spinner" aria-hidden="true"></span>
+                                        <span>Confirming Order...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Confirm Buy Now (@MarketFormat.Inr(product.Price))</span>
+                                    }
+                                </button>
+                                <button class="btn btn-ghost btn-block" @onclick="() => showCheckout = false">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Listings Section -->
+    @if (relatedProducts.Count > 0)
+    {
+        <section class="section">
+            <div class="section-head">
+                <h2 class="section-title">Similar Listings in @product.Category</h2>
+                <a class="section-link" href="marketplace?category=@Uri.EscapeDataString(product.Category)">View all</a>
+            </div>
+
+            <div class="grid">
+                @foreach (var rel in relatedProducts)
+                {
+                    <ProductCard Product="rel" />
+                }
+            </div>
+        </section>
+    }
+}
+
+<!-- Offer Modal -->
+@if (showOfferModal && product is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showOfferModal = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Make an Offer</h3>
+                <button class="modal-close" @onclick="() => showOfferModal = false">✕</button>
+            </div>
+
+            <p class="muted" style="font-size:0.9rem; margin-bottom:1rem">
+                Listing price: <strong>@MarketFormat.Inr(product.Price)</strong>. Enter your proposed price in rupees.
+            </p>
+
+            @if (!string.IsNullOrEmpty(offerError))
+            {
+                <div class="alert alert-error">@offerError</div>
+            }
+
+            <div class="field">
+                <label for="offer-amt">Proposed Price (₹)</label>
+                <input id="offer-amt" class="form-control" type="number" min="1" step="1" @bind="offerAmount" />
+            </div>
+
+            <div class="field">
+                <label for="offer-msg">Message to Seller <span class="muted">(optional)</span></label>
+                <textarea id="offer-msg" class="form-control" maxlength="400" placeholder="Hi! Would you be open to this price?" @bind="offerMessage"></textarea>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem">
+                <button class="btn btn-ghost" @onclick="() => showOfferModal = false">Cancel</button>
+                <button class="btn btn-primary" disabled="@submittingOffer" @onclick="SubmitOffer">
+                    @if (submittingOffer)
+                    {
+                        <span>Sending...</span>
+                    }
+                    else
+                    {
+                        <span>Send Offer</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Trade Modal -->
+@if (showTradeModal && product is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showTradeModal = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Propose an Item Trade</h3>
+                <button class="modal-close" @onclick="() => showTradeModal = false">✕</button>
+            </div>
+
+            <p class="muted" style="font-size:0.9rem; margin-bottom:1rem">
+                You are proposing an exchange for <strong>@product.Title</strong> (@MarketFormat.Inr(product.Price)).
+            </p>
+
+            @if (!string.IsNullOrEmpty(tradeError))
+            {
+                <div class="alert alert-error">@tradeError</div>
+            }
+
+            @if (myTradeableItems.Count == 0)
+            {
+                <div class="alert alert-info">
+                    You don't have any active listings right now to offer in trade. 
+                    <a href="sell" style="font-weight:600">List an item first →</a>
+                </div>
+            }
+            else
+            {
+                <div class="field">
+                    <label for="trade-item">Select Your Item to Offer</label>
+                    <select id="trade-item" class="form-select" @bind="selectedOfferedProductId">
+                        <option value="0">-- Select an item from your listings --</option>
+                        @foreach (var item in myTradeableItems)
+                        {
+                            <option value="@item.Id">@item.Title (@MarketFormat.Inr(item.Price))</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="trade-cash">Additional Cash Adjustment (₹) <span class="muted">(Optional cash you will add)</span></label>
+                    <input id="trade-cash" class="form-control" type="number" min="0" step="1" @bind="extraCash" />
+                </div>
+
+                <div class="field">
+                    <label for="trade-msg">Note to Owner <span class="muted">(optional)</span></label>
+                    <textarea id="trade-msg" class="form-control" maxlength="400" placeholder="I'm offering my item + extra cash. Let me know if that works!" @bind="tradeMessage"></textarea>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem">
+                    <button class="btn btn-ghost" @onclick="() => showTradeModal = false">Cancel</button>
+                    <button class="btn btn-accent" disabled="@(submittingTrade || selectedOfferedProductId == 0)" @onclick="SubmitTrade">
+                        @if (submittingTrade)
+                        {
+                            <span>Submitting Trade...</span>
+                        }
+                        else
+                        {
+                            <span>Send Trade Proposal</span>
+                        }
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<!-- Report Modal -->
+@if (showReportModal && product is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showReportModal = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Report Listing</h3>
+                <button class="modal-close" @onclick="() => showReportModal = false">✕</button>
+            </div>
+
+            <p class="muted" style="font-size:0.9rem; margin-bottom:1rem">
+                Help us keep ReTrade safe. What seems wrong with this listing?
+            </p>
+
+            @if (!string.IsNullOrEmpty(reportError))
+            {
+                <div class="alert alert-error">@reportError</div>
+            }
+
+            <div class="field">
+                <label for="report-reason">Reason for report</label>
+                <select id="report-reason" class="form-select" @bind="reportReason">
+                    <option value="Counterfeit/Fraud">Counterfeit, Fake, or Scam</option>
+                    <option value="Misleading Condition">Condition does not match description</option>
+                    <option value="Prohibited Item">Prohibited or illegal item</option>
+                    <option value="Inappropriate Content">Inappropriate photos or language</option>
+                    <option value="Spam">Spam or duplicate listing</option>
+                    <option value="Other">Other issue</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="report-desc">Details <span class="muted">(optional)</span></label>
+                <textarea id="report-desc" class="form-control" maxlength="600" placeholder="Provide extra context to help administrators investigate." @bind="reportDescription"></textarea>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem">
+                <button class="btn btn-ghost" @onclick="() => showReportModal = false">Cancel</button>
+                <button class="btn btn-primary" disabled="@submittingReport" @onclick="SubmitReport">
+                    @if (submittingReport)
+                    {
+                        <span>Submitting...</span>
+                    }
+                    else
+                    {
+                        <span>Submit Report</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Product? product;
+    private string? activeImage;
+    private ShopOrder? completedOrder;
+    private ShopOrder? myPreviousOrder;
+    private List<Product> relatedProducts = [];
+    private List<Review> sellerReviews = [];
+    private (double Average, int Count) sellerRating = (0.0, 0);
+
+    private bool isWishlisted;
+    private string? statusFeedbackMessage;
+
+    // Checkout state
+    private bool showCheckout;
+    private bool submittingOrder;
+    private string? checkoutError;
+    private string buyerName = "";
+    private string address = "Flat 204, Galaxy Heights, Main Ring Road";
+    private string city = "";
+    private string state = "";
+    private string pincode = "360001";
+    private string phone = "9876543210";
+    private PaymentMethod paymentMethod = PaymentMethod.CashOnDelivery;
+
+    // Offer modal state
+    private bool showOfferModal;
+    private bool submittingOffer;
+    private decimal offerAmount;
+    private string? offerMessage;
+    private string? offerError;
+
+    // Trade modal state
+    private bool showTradeModal;
+    private bool submittingTrade;
+    private List<Product> myTradeableItems = [];
+    private int selectedOfferedProductId;
+    private decimal extraCash = 0;
+    private string? tradeMessage;
+    private string? tradeError;
+
+    // Report modal state
+    private bool showReportModal;
+    private bool submittingReport;
+    private string reportReason = "Counterfeit/Fraud";
+    private string? reportDescription;
+    private string? reportError;
+
+    private char Initial =>
+        product is null || string.IsNullOrWhiteSpace(product.Title)
+            ? '?'
+            : char.ToUpperInvariant(product.Title[0]);
+
+    private char SellerInitial =>
+        product is null ? 'S' : char.ToUpperInvariant(Session.NameFor(product.SellerId)[0]);
+
+    protected override void OnParametersSet()
+    {
+        LoadProduct();
+    }
+
+    private void LoadProduct()
+    {
+        product = Products.GetProductById(Id);
+        if (product != null)
+        {
+            activeImage = product.ImageUrl;
+            if (Session.IsAuthenticated)
+            {
+                myPreviousOrder = Orders.GetOrderForProductAndBuyer(product.Id, Session.Current.Id);
+                buyerName = Session.Current.Name;
+                city = Session.Current.City;
+                state = Session.Current.State;
+                isWishlisted = Wishlist.IsWishlisted(Session.Current.Id, product.Id);
+            }
+            else
+            {
+                myPreviousOrder = null;
+                isWishlisted = false;
+            }
+            offerAmount = decimal.Round(product.Price * 0.9m);
+
+            relatedProducts = Products.Related(product.Id, product.Category, 4);
+            sellerReviews = Reviews.GetReviewsForUser(product.SellerId);
+            sellerRating = Reviews.GetSellerRating(product.SellerId);
+        }
+    }
+
+    private void Retry() => LoadProduct();
+
+    private void ToggleWishlist()
+    {
+        if (product == null) return;
+        if (!Session.IsAuthenticated)
+        {
+            Nav.NavigateTo($"login?returnUrl=product/{product.Id}");
+            return;
+        }
+        isWishlisted = Wishlist.Toggle(Session.Current.Id, product.Id);
+    }
+
+    private void OpenCheckout()
+    {
+        if (product == null) return;
+        if (!Session.IsAuthenticated)
+        {
+            Nav.NavigateTo($"login?returnUrl=product/{product.Id}");
+            return;
+        }
+        checkoutError = null;
+        buyerName = Session.Current.Name;
+        city = Session.Current.City;
+        state = Session.Current.State;
+        showCheckout = true;
+    }
+
+    private async Task ConfirmOrder()
+    {
+        if (product is null) return;
+
+        checkoutError = null;
+        submittingOrder = true;
+        await Task.Yield();
+
+        var (ok, message, order) = Orders.Place(
+            productId: product.Id,
+            buyerId: Session.Current.Id,
+            buyerName: buyerName,
+            address: address,
+            city: city,
+            state: state,
+            pincode: pincode,
+            phone: phone,
+            payment: paymentMethod
+        );
+
+        if (!ok || order is null)
+        {
+            checkoutError = message ?? "Failed to place order.";
+            submittingOrder = false;
+            return;
+        }
+
+        completedOrder = order;
+        showCheckout = false;
+        submittingOrder = false;
+        product = Products.GetProductById(Id);
+    }
+
+    private void OpenOfferModal()
+    {
+        if (product == null) return;
+        if (!Session.IsAuthenticated)
+        {
+            Nav.NavigateTo($"login?returnUrl=product/{product.Id}");
+            return;
+        }
+        offerError = null;
+        offerAmount = decimal.Round(product.Price * 0.9m);
+        offerMessage = null;
+        showOfferModal = true;
+    }
+
+    private async Task SubmitOffer()
+    {
+        if (product == null) return;
+        offerError = null;
+        submittingOffer = true;
+        await Task.Yield();
+
+        var (ok, err, _) = Offers.Submit(product.Id, Session.Current.Id, Session.Current.Name, offerAmount, offerMessage);
+        if (!ok)
+        {
+            offerError = err;
+            submittingOffer = false;
+            return;
+        }
+
+        submittingOffer = false;
+        showOfferModal = false;
+        statusFeedbackMessage = $"Your offer of {MarketFormat.Inr(offerAmount)} has been sent to {Session.NameFor(product.SellerId)}! You can track it in your Dashboard.";
+    }
+
+    private void OpenTradeModal()
+    {
+        if (product == null) return;
+        if (!Session.IsAuthenticated)
+        {
+            Nav.NavigateTo($"login?returnUrl=product/{product.Id}");
+            return;
+        }
+        tradeError = null;
+        selectedOfferedProductId = 0;
+        extraCash = 0;
+        tradeMessage = null;
+        myTradeableItems = Trades.MyTradeableListings(Session.Current.Id);
+        showTradeModal = true;
+    }
+
+    private async Task SubmitTrade()
+    {
+        if (product == null) return;
+        tradeError = null;
+        submittingTrade = true;
+        await Task.Yield();
+
+        var (ok, err, _) = Trades.Submit(product.Id, selectedOfferedProductId, Session.Current.Id, Session.Current.Name, extraCash, tradeMessage);
+        if (!ok)
+        {
+            tradeError = err;
+            submittingTrade = false;
+            return;
+        }
+
+        submittingTrade = false;
+        showTradeModal = false;
+        statusFeedbackMessage = $"Your trade proposal has been sent to {Session.NameFor(product.SellerId)}! You can track it in your Dashboard Trade Center.";
+    }
+
+    private void OpenReportModal()
+    {
+        if (product == null) return;
+        if (!Session.IsAuthenticated)
+        {
+            Nav.NavigateTo($"login?returnUrl=product/{product.Id}");
+            return;
+        }
+        reportReason = "Counterfeit / Fraud";
+        reportDescription = "";
+        reportError = null;
+        showReportModal = true;
+    }
+
+    private async Task SubmitReport()
+    {
+        if (product == null) return;
+        reportError = null;
+        submittingReport = true;
+        await Task.Yield();
+
+        var (ok, err, _) = Reports.SubmitReport(Session.Current.Id, Session.Current.Name, product.Id, product.Title, product.SellerId, Session.NameFor(product.SellerId), reportReason, reportDescription);
+        if (!ok)
+        {
+            reportError = err;
+            submittingReport = false;
+            return;
+        }
+
+        submittingReport = false;
+        showReportModal = false;
+        statusFeedbackMessage = "Thank you. Your report has been submitted to administrators for review.";
+    }
+
+    private void MarkAsSoldByOwner()
+    {
+        if (product == null) return;
+        var (ok, err) = Products.SetStatus(product.Id, Session.Current.Id, ProductStatus.Sold);
+        if (ok)
+        {
+            statusFeedbackMessage = "Listing marked as Sold.";
+            LoadProduct();
+        }
+        else
+        {
+            statusFeedbackMessage = err;
+        }
+    }
+}

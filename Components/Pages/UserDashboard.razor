@@ -1,0 +1,1155 @@
+@page "/dashboard"
+@inject ProductService Products
+@inject OrderService Orders
+@inject OfferService Offers
+@inject TradeService Trades
+@inject WishlistService Wishlist
+@inject ReviewService Reviews
+@inject DemoSession Session
+@inject NavigationManager Nav
+
+<PageTitle>User Dashboard — ReTrade</PageTitle>
+
+@if (!Session.IsAuthenticated)
+{
+    <div style="max-width: 520px; margin: 3rem auto; text-align: center;" class="detail-panel">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📊</div>
+        <h2>Sign In to Access Dashboard</h2>
+        <p class="muted" style="margin-bottom: 1.5rem;">
+            Please sign in to view your listings, incoming price offers, item swap proposals, and order history.
+        </p>
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+            <a href="login?returnUrl=dashboard" class="btn btn-primary">
+                🔑 Sign In to Continue
+            </a>
+            <a href="register" class="btn btn-outline">
+                Create an Account
+            </a>
+        </div>
+    </div>
+}
+else
+{
+<div class="page-head">
+    <div>
+        <h1>User Dashboard</h1>
+        <p class="muted">
+            Logged in as <strong>@Session.Current.Name</strong> • @Session.Current.City, @Session.Current.State
+            @if (Session.Current.IsAdmin)
+            {
+                <span class="badge badge-demo" style="margin-left:0.5rem">Administrator</span>
+            }
+        </p>
+    </div>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+        <a class="btn btn-primary" href="sell">➕ Sell an Item</a>
+        <a class="btn btn-outline" href="marketplace">Browse Marketplace</a>
+        @if (Session.Current.IsAdmin)
+        {
+            <a class="btn btn-accent" href="admin">🛡️ Admin Portal</a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert alert-success" role="alert">@statusMessage</div>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-error" role="alert">@errorMessage</div>
+}
+
+<!-- Dashboard Tabs -->
+<div class="filter-actions" style="margin-bottom:1.5rem; display:flex; gap:0.5rem; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; padding-bottom:0.75rem">
+    <button class="btn @(activeTab == "overview" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "overview"'>
+        📊 Overview
+    </button>
+    <button class="btn @(activeTab == "listings" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "listings"'>
+        📦 My Listings (@myListings.Count)
+    </button>
+    <button class="btn @(activeTab == "offers" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "offers"'>
+        💬 Offers Center (@(incomingOffers.Count(o => o.Status == OfferStatus.Pending) > 0 ? $"{incomingOffers.Count(o => o.Status == OfferStatus.Pending)} pending" : $"{incomingOffers.Count + sentOffers.Count}"))
+    </button>
+    <button class="btn @(activeTab == "trades" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "trades"'>
+        🔄 Trade Center (@(incomingTrades.Count(t => t.Status == TradeStatus.Pending) > 0 ? $"{incomingTrades.Count(t => t.Status == TradeStatus.Pending)} pending" : $"{incomingTrades.Count + sentTrades.Count}"))
+    </button>
+    <button class="btn @(activeTab == "orders" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "orders"'>
+        🛍️ Purchases & Sales (@buyerOrders.Count / @sellerOrders.Count)
+    </button>
+    <button class="btn @(activeTab == "wishlist" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "wishlist"'>
+        ❤️ Wishlist (@wishlistProducts.Count)
+    </button>
+    <button class="btn @(activeTab == "profile" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => activeTab = "profile"'>
+        ⚙️ Profile Settings
+    </button>
+</div>
+
+<!-- TAB 1: OVERVIEW -->
+@if (activeTab == "overview")
+{
+    <div class="overview-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1.5rem">
+        <div class="detail-panel" style="border-left:4px solid var(--brand)">
+            <span class="muted" style="font-size:0.82rem; font-weight:700; text-transform:uppercase">Active Listings</span>
+            <div style="font-size:1.8rem; font-weight:800; color:var(--ink); margin-top:0.25rem">
+                @myListings.Count(p => p.Status == ProductStatus.Active)
+            </div>
+            <span class="muted" style="font-size:0.85rem">Total uploaded: @myListings.Count</span>
+        </div>
+
+        <div class="detail-panel" style="border-left:4px solid #d97706">
+            <span class="muted" style="font-size:0.82rem; font-weight:700; text-transform:uppercase">Pending Offers</span>
+            <div style="font-size:1.8rem; font-weight:800; color:#d97706; margin-top:0.25rem">
+                @incomingOffers.Count(o => o.Status == OfferStatus.Pending)
+            </div>
+            <span class="muted" style="font-size:0.85rem">Awaiting your response</span>
+        </div>
+
+        <div class="detail-panel" style="border-left:4px solid var(--accent)">
+            <span class="muted" style="font-size:0.82rem; font-weight:700; text-transform:uppercase">Pending Trades</span>
+            <div style="font-size:1.8rem; font-weight:800; color:var(--accent); margin-top:0.25rem">
+                @incomingTrades.Count(t => t.Status == TradeStatus.Pending)
+            </div>
+            <span class="muted" style="font-size:0.85rem">Trade proposals received</span>
+        </div>
+
+        <div class="detail-panel" style="border-left:4px solid #16a34a">
+            <span class="muted" style="font-size:0.82rem; font-weight:700; text-transform:uppercase">Completed Purchases</span>
+            <div style="font-size:1.8rem; font-weight:800; color:#16a34a; margin-top:0.25rem">
+                @buyerOrders.Count
+            </div>
+            <span class="muted" style="font-size:0.85rem">Total spent: @MarketFormat.Inr(buyerOrders.Sum(o => o.Amount))</span>
+        </div>
+    </div>
+
+    <!-- Quick action links -->
+    <div class="detail-panel">
+        <h2>Quick Shortcuts</h2>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
+            <button class="btn btn-outline" @onclick='() => activeTab = "offers"'>Review Incoming Offers →</button>
+            <button class="btn btn-outline" @onclick='() => activeTab = "trades"'>View Trade Requests →</button>
+            <button class="btn btn-outline" @onclick='() => activeTab = "listings"'>Manage Your Listings →</button>
+            <button class="btn btn-outline" @onclick='() => activeTab = "orders"'>View Purchase Receipts →</button>
+        </div>
+    </div>
+}
+
+<!-- TAB 2: MY LISTINGS -->
+@if (activeTab == "listings")
+{
+    @if (myListings.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-icon">📦</div>
+            <div class="state-title">No listings posted yet</div>
+            <p class="state-text">You haven't uploaded any items for sale or trade yet.</p>
+            <div class="state-actions">
+                <a class="btn btn-primary" href="sell">Sell Your First Item</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div style="display:grid; gap:1rem">
+            @foreach (var item in myListings)
+            {
+                <div class="detail-panel" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem">
+                    <div style="display:flex; align-items:center; gap:1rem">
+                        <div style="width:72px; height:72px; border-radius:8px; overflow:hidden; background:#e2e8f0; flex-shrink:0">
+                            @if (!string.IsNullOrWhiteSpace(item.ImageUrl))
+                            {
+                                <img src="@item.ImageUrl" alt="@item.Title" style="width:100%; height:100%; object-fit:cover" />
+                            }
+                            else
+                            {
+                                <div style="display:grid; place-items:center; height:100%; font-weight:800; color:#64748b; font-size:1.5rem">
+                                    @char.ToUpperInvariant(item.Title[0])
+                                </div>
+                            }
+                        </div>
+                        <div>
+                            <div class="badge-row" style="margin-bottom:0.25rem">
+                                <span class="badge @(item.Status == ProductStatus.Active ? "badge-condition" : "badge-sold")">
+                                    @MarketFormat.Status(item.Status)
+                                </span>
+                                @if (item.TradeAvailable)
+                                {
+                                    <span class="badge badge-trade">Trade</span>
+                                }
+                                @if (item.IsNegotiable)
+                                {
+                                    <span class="badge badge-negotiable">Negotiable</span>
+                                }
+                            </div>
+                            <h3 style="margin-bottom:0.25rem; font-size:1.1rem">
+                                <a href="product/@item.Id" style="color:inherit; text-decoration:none">@item.Title</a>
+                            </h3>
+                            <div class="price" style="font-size:1.15rem">@MarketFormat.Inr(item.Price)</div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                        <a class="btn btn-outline btn-sm" href="product/@item.Id">View</a>
+                        <a class="btn btn-primary btn-sm" href="listing/edit/@item.Id">Edit</a>
+
+                        @if (item.Status == ProductStatus.Active)
+                        {
+                            <button class="btn btn-outline btn-sm" @onclick='() => ToggleStatus(item.Id, ProductStatus.Sold)'>Mark Sold</button>
+                            <button class="btn btn-ghost btn-sm" @onclick='() => ToggleStatus(item.Id, ProductStatus.Inactive)'>Pause</button>
+                        }
+                        else if (item.Status == ProductStatus.Inactive)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick='() => ToggleStatus(item.Id, ProductStatus.Active)'>Re-activate</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+<!-- TAB 3: OFFERS CENTER -->
+@if (activeTab == "offers")
+{
+    <div style="margin-bottom:1rem; display:flex; gap:0.5rem">
+        <button class="btn @(offersSubTab == "incoming" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => offersSubTab = "incoming"'>
+            📥 Received Offers (@incomingOffers.Count)
+        </button>
+        <button class="btn @(offersSubTab == "sent" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => offersSubTab = "sent"'>
+            📤 Offers I Sent (@sentOffers.Count)
+        </button>
+    </div>
+
+    @if (offersSubTab == "incoming")
+    {
+        @if (incomingOffers.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No incoming offers yet</div>
+                <p class="state-text">When buyers negotiate prices on your listings, their offers will appear here.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1rem">
+                @foreach (var offer in incomingOffers)
+                {
+                    <div class="detail-panel" style="border-left:4px solid @(offer.Status == OfferStatus.Pending ? "#d97706" : (offer.Status == OfferStatus.Accepted ? "#16a34a" : "#cbd5e1"))">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.75rem">
+                            <div>
+                                <span class="badge @(offer.Status == OfferStatus.Pending ? "badge-negotiable" : (offer.Status == OfferStatus.Accepted ? "badge-trade" : "badge-sold"))">
+                                    @MarketFormat.OfferStatus(offer.Status)
+                                </span>
+                                <h3 style="margin-top:0.35rem; margin-bottom:0.25rem; font-size:1.15rem">
+                                    <a href="product/@offer.ProductId" style="color:inherit">@offer.ProductTitle</a>
+                                </h3>
+                                <div class="muted" style="font-size:0.88rem">
+                                    Offered by <strong>@offer.BuyerName</strong> on @MarketFormat.When(offer.CreatedAt)
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(offer.Message))
+                                {
+                                    <p style="margin-top:0.5rem; margin-bottom:0.25rem; font-style:italic; font-size:0.92rem">
+                                        "{offer.Message}"
+                                    </p>
+                                }
+                            </div>
+
+                            <div style="text-align:right">
+                                <div class="price" style="font-size:1.35rem; color:var(--brand)">
+                                    @MarketFormat.Inr(offer.Amount)
+                                </div>
+                                @if (offer.CounterAmount.HasValue)
+                                {
+                                    <span class="muted" style="font-size:0.85rem">Countered: @MarketFormat.Inr(offer.CounterAmount.Value)</span>
+                                }
+                            </div>
+                        </div>
+
+                        @if (offer.Status == OfferStatus.Pending)
+                        {
+                            <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1rem; flex-wrap:wrap">
+                                <button class="btn btn-primary btn-sm" @onclick="() => AcceptOffer(offer.Id)">
+                                    ✓ Accept (@MarketFormat.Inr(offer.Amount))
+                                </button>
+                                <button class="btn btn-outline btn-sm" @onclick="() => OpenOfferCounterModal(offer)">
+                                    ⇄ Counter Offer
+                                </button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => RejectOffer(offer.Id)">
+                                    ✕ Decline
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        @if (sentOffers.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No outgoing offers</div>
+                <p class="state-text">You haven't made any offers on items yet.</p>
+                <div class="state-actions">
+                    <a class="btn btn-primary" href="marketplace">Browse Marketplace</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1rem">
+                @foreach (var offer in sentOffers)
+                {
+                    <div class="detail-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.75rem">
+                            <div>
+                                <span class="badge @(offer.Status == OfferStatus.Accepted ? "badge-trade" : (offer.Status == OfferStatus.Countered ? "badge-negotiable" : "badge-demo"))">
+                                    @MarketFormat.OfferStatus(offer.Status)
+                                </span>
+                                <h3 style="margin-top:0.35rem; margin-bottom:0.25rem; font-size:1.15rem">
+                                    <a href="product/@offer.ProductId" style="color:inherit">@offer.ProductTitle</a>
+                                </h3>
+                                <div class="muted" style="font-size:0.88rem">
+                                    Sent to seller on @MarketFormat.When(offer.CreatedAt)
+                                </div>
+                                @if (offer.Status == OfferStatus.Countered && offer.CounterAmount.HasValue)
+                                {
+                                    <div class="alert alert-info" style="margin-top:0.75rem; margin-bottom:0.25rem">
+                                        Seller countered with <strong>@MarketFormat.Inr(offer.CounterAmount.Value)</strong>: "@offer.CounterMessage"
+                                    </div>
+                                }
+                            </div>
+
+                            <div style="text-align:right">
+                                <div class="price" style="font-size:1.35rem; color:var(--brand)">
+                                    @MarketFormat.Inr(offer.Amount)
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1rem">
+                            @if (offer.Status == OfferStatus.Countered)
+                            {
+                                <button class="btn btn-primary btn-sm" @onclick="() => AcceptOffer(offer.Id)">
+                                    ✓ Accept Counter (@MarketFormat.Inr(offer.CounterAmount ?? 0))
+                                </button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => RejectOffer(offer.Id)">
+                                    ✕ Decline Counter
+                                </button>
+                            }
+                            else if (offer.Status == OfferStatus.Pending)
+                            {
+                                <button class="btn btn-ghost btn-sm" @onclick="() => CancelOffer(offer.Id)">
+                                    Cancel Offer
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+<!-- TAB 4: TRADE CENTER -->
+@if (activeTab == "trades")
+{
+    <div style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap">
+        <button class="btn @(tradesSubTab == "incoming" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => tradesSubTab = "incoming"'>
+            📥 Received Trades (@incomingTrades.Count)
+        </button>
+        <button class="btn @(tradesSubTab == "sent" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => tradesSubTab = "sent"'>
+            📤 Trades I Proposed (@sentTrades.Count)
+        </button>
+        <button class="btn @(tradesSubTab == "completed" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => tradesSubTab = "completed"'>
+            🤝 Completed Swaps (@completedTrades.Count)
+        </button>
+    </div>
+
+    @if (tradesSubTab == "incoming")
+    {
+        @if (incomingTrades.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No incoming trade proposals</div>
+                <p class="state-text">When users offer to swap items with yours, you will review them here.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1.2rem">
+                @foreach (var trade in incomingTrades)
+                {
+                    <div class="detail-panel" style="border-left:4px solid var(--accent)">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem">
+                            <span class="badge badge-trade">@MarketFormat.TradeStatus(trade.Status)</span>
+                            <span class="muted" style="font-size:0.85rem">@MarketFormat.When(trade.CreatedAt)</span>
+                        </div>
+
+                        <!-- Side-by-side trade items -->
+                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:1rem; align-items:center; background:#f8fafc; border-radius:10px; padding:1rem">
+                            <div>
+                                <span class="muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700">Your Item</span>
+                                <div style="font-weight:700; font-size:1.05rem; margin-top:0.2rem">@trade.TargetProductTitle</div>
+                                <div style="color:var(--brand); font-weight:600">@MarketFormat.Inr(trade.TargetProductPrice)</div>
+                            </div>
+
+                            <div style="font-size:1.5rem; color:var(--muted)">⇄</div>
+
+                            <div>
+                                <span class="muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700">Offered by @trade.FromUserName</span>
+                                <div style="font-weight:700; font-size:1.05rem; margin-top:0.2rem">@trade.OfferedProductTitle</div>
+                                <div style="color:var(--brand); font-weight:600">
+                                    @MarketFormat.Inr(trade.OfferedProductPrice)
+                                    @if (trade.ExtraCash > 0)
+                                    {
+                                        <span style="color:#16a34a; font-size:0.88rem; margin-left:0.25rem">+ ₹@trade.ExtraCash cash</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(trade.Message))
+                        {
+                            <p style="margin-top:0.75rem; margin-bottom:0.25rem; font-style:italic; font-size:0.92rem">
+                                Note from trader: "{trade.Message}"
+                            </p>
+                        }
+
+                        @if (trade.Status == TradeStatus.Pending)
+                        {
+                            <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1rem; flex-wrap:wrap">
+                                <button class="btn btn-accent btn-sm" @onclick="() => AcceptTrade(trade.Id)">
+                                    ✓ Accept Exchange
+                                </button>
+                                <button class="btn btn-outline btn-sm" @onclick="() => OpenTradeCounterModal(trade)">
+                                    ⇄ Counter Cash
+                                </button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => RejectTrade(trade.Id)">
+                                    ✕ Decline
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+    else if (tradesSubTab == "sent")
+    {
+        @if (sentTrades.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No proposed trades</div>
+                <p class="state-text">You haven't proposed any trades yet.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1.2rem">
+                @foreach (var trade in sentTrades)
+                {
+                    <div class="detail-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem">
+                            <span class="badge @(trade.Status == TradeStatus.Completed ? "badge-trade" : "badge-demo")">
+                                @MarketFormat.TradeStatus(trade.Status)
+                            </span>
+                            <span class="muted" style="font-size:0.85rem">@MarketFormat.When(trade.CreatedAt)</span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:1rem; align-items:center; background:#f8fafc; border-radius:10px; padding:1rem">
+                            <div>
+                                <span class="muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700">You Offered</span>
+                                <div style="font-weight:700; font-size:1.05rem; margin-top:0.2rem">@trade.OfferedProductTitle</div>
+                                <div style="color:var(--brand); font-weight:600">
+                                    @MarketFormat.Inr(trade.OfferedProductPrice)
+                                    @if (trade.ExtraCash > 0)
+                                    {
+                                        <span style="color:#16a34a; font-size:0.88rem; margin-left:0.25rem">+ ₹@trade.ExtraCash cash</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div style="font-size:1.5rem; color:var(--muted)">⇄</div>
+
+                            <div>
+                                <span class="muted" style="font-size:0.75rem; text-transform:uppercase; font-weight:700">Requested Item</span>
+                                <div style="font-weight:700; font-size:1.05rem; margin-top:0.2rem">@trade.TargetProductTitle</div>
+                                <div style="color:var(--brand); font-weight:600">@MarketFormat.Inr(trade.TargetProductPrice)</div>
+                            </div>
+                        </div>
+
+                        @if (trade.Status == TradeStatus.Countered && trade.CounterCash.HasValue)
+                        {
+                            <div class="alert alert-info" style="margin-top:0.75rem; margin-bottom:0.25rem">
+                                Owner proposed counter adjustment of <strong>@MarketFormat.Inr(trade.CounterCash.Value)</strong> extra cash: "@trade.CounterMessage"
+                            </div>
+                        }
+
+                        <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1rem">
+                            @if (trade.Status == TradeStatus.Countered)
+                            {
+                                <button class="btn btn-accent btn-sm" @onclick="() => AcceptTrade(trade.Id)">
+                                    ✓ Accept Counter (@MarketFormat.Inr(trade.CounterCash ?? 0))
+                                </button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => RejectTrade(trade.Id)">
+                                    ✕ Decline Counter
+                                </button>
+                            }
+                            else if (trade.Status == TradeStatus.Pending)
+                            {
+                                <button class="btn btn-ghost btn-sm" @onclick="() => CancelTrade(trade.Id)">
+                                    Cancel Trade Proposal
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        @if (completedTrades.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No completed trades yet</div>
+                <p class="state-text">Accepted item exchanges will appear in this archive.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1rem">
+                @foreach (var trade in completedTrades)
+                {
+                    <div class="detail-panel" style="border-left:4px solid #16a34a">
+                        <div class="badge badge-trade" style="margin-bottom:0.5rem">✓ Swap Completed</div>
+                        <div style="font-size:1.05rem">
+                            Exchanged <strong>@trade.TargetProductTitle</strong> for <strong>@trade.OfferedProductTitle</strong>
+                            @if (trade.ExtraCash > 0)
+                            {
+                                <span>with @MarketFormat.Inr(trade.ExtraCash) cash adjustment</span>
+                            }
+                        </div>
+                        <div class="muted" style="font-size:0.85rem; margin-top:0.35rem">Finalized on @MarketFormat.When(trade.UpdatedAt)</div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+<!-- TAB 5: PURCHASES & SALES -->
+@if (activeTab == "orders")
+{
+    <div style="margin-bottom:1rem; display:flex; gap:0.5rem">
+        <button class="btn @(ordersSubTab == "purchases" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => ordersSubTab = "purchases"'>
+            🛍️ My Purchases (@buyerOrders.Count)
+        </button>
+        <button class="btn @(ordersSubTab == "sales" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => ordersSubTab = "sales"'>
+            💼 My Sales (@sellerOrders.Count)
+        </button>
+    </div>
+
+    @if (ordersSubTab == "purchases")
+    {
+        @if (buyerOrders.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No purchases recorded</div>
+                <p class="state-text">Use Buy Now on any active marketplace listing to complete a purchase.</p>
+                <div class="state-actions">
+                    <a class="btn btn-primary" href="marketplace">Browse Marketplace</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1rem">
+                @foreach (var order in buyerOrders)
+                {
+                    <div class="detail-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem">
+                            <div>
+                                <div class="badge-row">
+                                    <span class="badge badge-trade">Order #@order.Id</span>
+                                    <span class="badge badge-condition">@MarketFormat.OrderStatus(order.Status)</span>
+                                </div>
+                                <h3 style="margin-top:0.35rem; margin-bottom:0.25rem; font-size:1.2rem">
+                                    <a href="product/@order.ProductId" style="color:inherit">@order.ProductTitle</a>
+                                </h3>
+                                <div class="muted" style="font-size:0.88rem">
+                                    Bought from <strong>@Session.NameFor(order.SellerId)</strong> on @MarketFormat.When(order.CreatedAt)
+                                </div>
+                            </div>
+
+                            <div style="text-align:right">
+                                <div class="price" style="font-size:1.35rem; color:var(--brand)">
+                                    @MarketFormat.Inr(order.Amount)
+                                </div>
+                                <span class="badge badge-demo">@MarketFormat.Payment(order.Payment)</span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; flex-wrap:wrap; gap:0.5rem">
+                            <span class="muted" style="font-size:0.85rem">
+                                Shipping to: @order.BuyerName, @order.City (@order.Phone)
+                            </span>
+
+                            @if (!Reviews.HasReviewedOrder(order.Id, Session.Current.Id))
+                            {
+                                <button class="btn btn-outline btn-sm" @onclick="() => OpenReviewModal(order)">
+                                    ★ Leave Review for Seller
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="badge badge-trade">✓ Reviewed</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        @if (sellerOrders.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No sales recorded yet</div>
+                <p class="state-text">When buyers purchase your items, their order receipts will appear here.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1rem">
+                @foreach (var order in sellerOrders)
+                {
+                    <div class="detail-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem">
+                            <div>
+                                <div class="badge-row">
+                                    <span class="badge badge-trade">Order #@order.Id</span>
+                                    <span class="badge badge-condition">@MarketFormat.OrderStatus(order.Status)</span>
+                                </div>
+                                <h3 style="margin-top:0.35rem; margin-bottom:0.25rem; font-size:1.2rem">
+                                    @order.ProductTitle
+                                </h3>
+                                <div class="muted" style="font-size:0.88rem">
+                                    Buyer: <strong>@order.BuyerName</strong> (@order.Phone) • @MarketFormat.When(order.CreatedAt)
+                                </div>
+                            </div>
+
+                            <div style="text-align:right">
+                                <div class="price" style="font-size:1.35rem; color:var(--brand)">
+                                    @MarketFormat.Inr(order.Amount)
+                                </div>
+                                <span class="badge badge-demo">@MarketFormat.Payment(order.Payment)</span>
+                            </div>
+                        </div>
+
+                        <div style="background:#f8fafc; border-radius:8px; padding:0.75rem; margin-top:0.75rem; font-size:0.9rem">
+                            <strong>Delivery Address:</strong> @order.Address, @order.City, @order.State - @order.Pincode
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end; align-items:center; gap:0.5rem; margin-top:0.75rem">
+                            <label class="muted" style="font-size:0.85rem">Update Fulfillment Status:</label>
+                            <select class="form-select" style="width:auto; font-size:0.85rem; padding:0.35rem 0.65rem" 
+                                    value="@((int)order.Status)"
+                                    @onchange='(e) => UpdateOrderStatus(order.Id, e)'>
+                                @foreach (var st in Enum.GetValues<OrderStatus>())
+                                {
+                                    <option value="@((int)st)">@MarketFormat.OrderStatus(st)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+<!-- TAB 6: WISHLIST -->
+@if (activeTab == "wishlist")
+{
+    @if (wishlistProducts.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-icon">❤️</div>
+            <div class="state-title">Your wishlist is empty</div>
+            <p class="state-text">Save items you're interested in by clicking the heart button on any listing.</p>
+            <div class="state-actions">
+                <a class="btn btn-primary" href="marketplace">Browse Marketplace</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var p in wishlistProducts)
+            {
+                <ProductCard Product="p" />
+            }
+        </div>
+    }
+}
+
+<!-- TAB 7: PROFILE SETTINGS -->
+@if (activeTab == "profile")
+{
+    <div class="detail-layout">
+        <div class="detail-panel">
+            <h2>Profile Information</h2>
+            <EditForm Model="profileDraft" OnValidSubmit="SaveProfile">
+                <div class="field">
+                    <label for="p-name">Full Name *</label>
+                    <input id="p-name" class="form-control" @bind="profileDraft.FullName" />
+                </div>
+
+                <div class="field">
+                    <label for="p-email">Email Address <span class="muted">(Account ID)</span></label>
+                    <input id="p-email" class="form-control" value="@profileDraft.Email" disabled />
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="p-city">City *</label>
+                        <input id="p-city" class="form-control" @bind="profileDraft.City" />
+                    </div>
+                    <div class="field">
+                        <label for="p-state">State *</label>
+                        <input id="p-state" class="form-control" @bind="profileDraft.State" />
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="p-phone">Phone Number <span class="muted">(For buyer deliveries)</span></label>
+                    <input id="p-phone" class="form-control" maxlength="10" @bind="profileDraft.Phone" />
+                </div>
+
+                <div class="field">
+                    <label for="p-bio">Bio / About Seller <span class="muted">(optional)</span></label>
+                    <textarea id="p-bio" class="form-control" maxlength="300" @bind="profileDraft.Bio"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg" disabled="@savingProfile">
+                    @if (savingProfile)
+                    {
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Profile Settings</span>
+                    }
+                </button>
+            </EditForm>
+        </div>
+
+        <div>
+            <div class="detail-panel">
+                <h2>Account Security</h2>
+                <p class="muted" style="font-size:0.92rem">
+                    Registered on @MarketFormat.When(profileDraft.CreatedAt).
+                    Role: <strong>@profileDraft.Role</strong>.
+                </p>
+                <p class="muted" style="font-size:0.88rem">
+                    Passwords are encrypted with SHA-256 and salted. Use strong passwords with numbers and symbols.
+                </p>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Counter Offer Modal -->
+@if (showCounterOfferModal && activeOfferToCounter is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showCounterOfferModal = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Counter Offer</h3>
+                <button class="modal-close" @onclick="() => showCounterOfferModal = false">✕</button>
+            </div>
+            <p class="muted">
+                Buyer offered: <strong>@MarketFormat.Inr(activeOfferToCounter.Amount)</strong> for <em>@activeOfferToCounter.ProductTitle</em>.
+            </p>
+            <div class="field">
+                <label for="cntr-amt">Your Counter Price (₹)</label>
+                <input id="cntr-amt" class="form-control" type="number" min="1" step="1" @bind="counterOfferAmount" />
+            </div>
+            <div class="field">
+                <label for="cntr-msg">Note to Buyer <span class="muted">(optional)</span></label>
+                <textarea id="cntr-msg" class="form-control" maxlength="400" @bind="counterOfferMessage"></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem">
+                <button class="btn btn-ghost" @onclick="() => showCounterOfferModal = false">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitCounterOffer">Send Counter Offer</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Counter Trade Modal -->
+@if (showCounterTradeModal && activeTradeToCounter is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showCounterTradeModal = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Counter Trade Proposal</h3>
+                <button class="modal-close" @onclick="() => showCounterTradeModal = false">✕</button>
+            </div>
+            <p class="muted">
+                Exchange for <em>@activeTradeToCounter.OfferedProductTitle</em>. Specify how much extra cash you require:
+            </p>
+            <div class="field">
+                <label for="cntr-trade-cash">Required Extra Cash (₹)</label>
+                <input id="cntr-trade-cash" class="form-control" type="number" min="0" step="1" @bind="counterTradeCash" />
+            </div>
+            <div class="field">
+                <label for="cntr-trade-msg">Note to Proposer <span class="muted">(optional)</span></label>
+                <textarea id="cntr-trade-msg" class="form-control" maxlength="400" @bind="counterTradeMessage"></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem">
+                <button class="btn btn-ghost" @onclick="() => showCounterTradeModal = false">Cancel</button>
+                <button class="btn btn-accent" @onclick="SubmitCounterTrade">Send Counter Trade</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Review Modal -->
+@if (showReviewModal && activeOrderToReview is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showReviewModal = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Review Seller</h3>
+                <button class="modal-close" @onclick="() => showReviewModal = false">✕</button>
+            </div>
+            <p class="muted">
+                Rate your purchase experience for <strong>@activeOrderToReview.ProductTitle</strong> with @Session.NameFor(activeOrderToReview.SellerId).
+            </p>
+            <div class="field">
+                <label for="rev-rating">Star Rating (1 - 5 stars)</label>
+                <select id="rev-rating" class="form-select" @bind="reviewRating">
+                    <option value="5">★★★★★ (5 Stars - Excellent)</option>
+                    <option value="4">★★★★☆ (4 Stars - Very Good)</option>
+                    <option value="3">★★★☆☆ (3 Stars - Average)</option>
+                    <option value="2">★★☆☆☆ (2 Stars - Below Average)</option>
+                    <option value="1">★☆☆☆☆ (1 Star - Poor)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="rev-comment">Feedback Comment *</label>
+                <textarea id="rev-comment" class="form-control" maxlength="1000" placeholder="Was the item in good condition? Fast delivery? Accurate description?" @bind="reviewComment"></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem">
+                <button class="btn btn-ghost" @onclick="() => showReviewModal = false">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitReview">Publish Review</button>
+            </div>
+        </div>
+    </div>
+}
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? Tab { get; set; }
+
+    private string activeTab = "overview";
+    private string offersSubTab = "incoming";
+    private string tradesSubTab = "incoming";
+    private string ordersSubTab = "purchases";
+
+    private string? statusMessage;
+    private string? errorMessage;
+
+    private List<Product> myListings = [];
+    private List<Offer> incomingOffers = [];
+    private List<Offer> sentOffers = [];
+    private List<TradeRequest> incomingTrades = [];
+    private List<TradeRequest> sentTrades = [];
+    private List<TradeRequest> completedTrades = [];
+    private List<ShopOrder> buyerOrders = [];
+    private List<ShopOrder> sellerOrders = [];
+    private List<Product> wishlistProducts = [];
+    private User profileDraft = new();
+    private bool savingProfile;
+
+    // Counter offer modal
+    private bool showCounterOfferModal;
+    private Offer? activeOfferToCounter;
+    private decimal counterOfferAmount;
+    private string? counterOfferMessage;
+
+    // Counter trade modal
+    private bool showCounterTradeModal;
+    private TradeRequest? activeTradeToCounter;
+    private decimal counterTradeCash;
+    private string? counterTradeMessage;
+
+    // Review modal
+    private bool showReviewModal;
+    private ShopOrder? activeOrderToReview;
+    private int reviewRating = 5;
+    private string reviewComment = "";
+
+    protected override void OnInitialized()
+    {
+        Session.OnChange += StateHasChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(Tab))
+            activeTab = Tab.ToLowerInvariant();
+
+        LoadDashboardData();
+    }
+
+    private void LoadDashboardData()
+    {
+        if (!Session.IsAuthenticated) return;
+
+        var uid = Session.Current.Id;
+        myListings = Products.ForSeller(uid);
+        incomingOffers = Offers.ReceivedBy(uid);
+        sentOffers = Offers.SentBy(uid);
+        incomingTrades = Trades.Incoming(uid);
+        sentTrades = Trades.Sent(uid);
+        completedTrades = Trades.CompletedTrades(uid);
+        buyerOrders = Orders.ForBuyer(uid);
+        sellerOrders = Orders.ForSeller(uid);
+        wishlistProducts = Wishlist.GetUserWishlist(uid);
+
+        var fullUser = Session.GetFullUser(uid);
+        if (fullUser != null)
+        {
+            profileDraft = new User
+            {
+                Id = fullUser.Id,
+                Email = fullUser.Email,
+                FullName = fullUser.FullName,
+                City = fullUser.City,
+                State = fullUser.State,
+                Phone = fullUser.Phone,
+                Bio = fullUser.Bio,
+                Role = fullUser.Role,
+                CreatedAt = fullUser.CreatedAt
+            };
+        }
+    }
+
+    private void ToggleStatus(int productId, ProductStatus newStatus)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Products.SetStatus(productId, Session.Current.Id, newStatus);
+        if (ok)
+        {
+            statusMessage = $"Status changed to {MarketFormat.Status(newStatus)}.";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void AcceptOffer(int offerId)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Offers.Accept(offerId, Session.Current.Id);
+        if (ok)
+        {
+            statusMessage = "Offer accepted successfully!";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void RejectOffer(int offerId)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Offers.Reject(offerId, Session.Current.Id);
+        if (ok)
+        {
+            statusMessage = "Offer declined.";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void CancelOffer(int offerId)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Offers.Cancel(offerId, Session.Current.Id);
+        if (ok)
+        {
+            statusMessage = "Offer cancelled.";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void OpenOfferCounterModal(Offer offer)
+    {
+        activeOfferToCounter = offer;
+        counterOfferAmount = offer.Amount + 200;
+        counterOfferMessage = null;
+        showCounterOfferModal = true;
+    }
+
+    private void SubmitCounterOffer()
+    {
+        if (activeOfferToCounter == null) return;
+        var (ok, err) = Offers.Counter(activeOfferToCounter.Id, Session.Current.Id, counterOfferAmount, counterOfferMessage);
+        if (ok)
+        {
+            statusMessage = $"Counter-offer of {MarketFormat.Inr(counterOfferAmount)} submitted.";
+            showCounterOfferModal = false;
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void AcceptTrade(int tradeId)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Trades.Accept(tradeId, Session.Current.Id);
+        if (ok)
+        {
+            statusMessage = "Trade exchange accepted and completed! Items are marked as traded.";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void RejectTrade(int tradeId)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Trades.Reject(tradeId, Session.Current.Id);
+        if (ok)
+        {
+            statusMessage = "Trade proposal declined.";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void CancelTrade(int tradeId)
+    {
+        statusMessage = null;
+        errorMessage = null;
+        var (ok, err) = Trades.Cancel(tradeId, Session.Current.Id);
+        if (ok)
+        {
+            statusMessage = "Trade proposal cancelled.";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void OpenTradeCounterModal(TradeRequest trade)
+    {
+        activeTradeToCounter = trade;
+        counterTradeCash = trade.ExtraCash + 500;
+        counterTradeMessage = null;
+        showCounterTradeModal = true;
+    }
+
+    private void SubmitCounterTrade()
+    {
+        if (activeTradeToCounter == null) return;
+        var (ok, err) = Trades.Counter(activeTradeToCounter.Id, Session.Current.Id, counterTradeCash, counterTradeMessage);
+        if (ok)
+        {
+            statusMessage = $"Counter trade with {MarketFormat.Inr(counterTradeCash)} extra cash submitted.";
+            showCounterTradeModal = false;
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void UpdateOrderStatus(int orderId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var stInt))
+        {
+            var newStatus = (OrderStatus)stInt;
+            Orders.UpdateStatus(orderId, newStatus);
+            statusMessage = $"Order #{orderId} status updated to {MarketFormat.OrderStatus(newStatus)}.";
+            LoadDashboardData();
+        }
+    }
+
+    private void OpenReviewModal(ShopOrder order)
+    {
+        activeOrderToReview = order;
+        reviewRating = 5;
+        reviewComment = "";
+        showReviewModal = true;
+    }
+
+    private void SubmitReview()
+    {
+        if (activeOrderToReview == null) return;
+        var (ok, err, _) = Reviews.SubmitReview(activeOrderToReview.Id, Session.Current.Id, Session.Current.Name, reviewRating, reviewComment);
+        if (ok)
+        {
+            statusMessage = "Thank you! Your seller review has been published.";
+            showReviewModal = false;
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void SaveProfile()
+    {
+        savingProfile = true;
+        var ok = Session.UpdateProfile(profileDraft.Id, profileDraft.FullName, profileDraft.City, profileDraft.State, profileDraft.Phone, profileDraft.Bio);
+        savingProfile = false;
+        if (ok)
+        {
+            statusMessage = "Profile updated successfully!";
+            LoadDashboardData();
+        }
+        else
+        {
+            errorMessage = "Failed to update profile.";
+        }
+    }
+}

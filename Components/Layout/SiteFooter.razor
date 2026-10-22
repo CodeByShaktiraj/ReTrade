@@ -1,0 +1,108 @@
+@implements IDisposable
+@inject DemoSession Session
+
+<footer class="site-footer" role="contentinfo">
+    <div class="container footer-container">
+        <!-- Main Footer Navigation Columns -->
+        <div class="footer-grid">
+            <!-- Brand & Mission Column -->
+            <div class="footer-col footer-col-brand">
+                <a class="footer-brand" href="" title="ReTrade Marketplace Home">
+                    <span class="brand-mark" aria-hidden="true">R</span>
+                    <span class="brand-text">ReTrade</span>
+                </a>
+                <p class="footer-desc">
+                    Give pre-loved items a new home. Buy, sell, and trade with your community.
+                </p>
+                <div class="footer-pill-row">
+                    <span class="footer-trust-badge">Direct C2C Exchange</span>
+                    <span class="footer-trust-badge">Zero Hidden Fees</span>
+                </div>
+            </div>
+
+            <!-- Marketplace Links -->
+            <div class="footer-col">
+                <h3 class="footer-title">Marketplace</h3>
+                <nav class="footer-links" aria-label="Marketplace links">
+                    <a href="marketplace">Browse Items</a>
+                    <a href="marketplace">All Categories</a>
+                    <a href="#recent">Recently Listed</a>
+                    <a href="#trades">Trade &amp; Swap</a>
+                    <a href="sell">Sell an Item</a>
+                </nav>
+            </div>
+
+            <!-- Customer Support Links -->
+            <div class="footer-col">
+                <h3 class="footer-title">Help &amp; Support</h3>
+                <nav class="footer-links" aria-label="Customer support links">
+                    <a href="help">Help Center</a>
+                    <a href="contact">Contact Us</a>
+                    <a href="help#faq">Frequently Asked Questions</a>
+                    <a href="help#buying-guide">Buying Guide</a>
+                    <a href="help#selling-guide">Selling Guide</a>
+                </nav>
+            </div>
+
+            <!-- Account Links -->
+            <div class="footer-col">
+                <h3 class="footer-title">Your Account</h3>
+                <nav class="footer-links" aria-label="Account navigation links">
+                    @if (Session.IsAuthenticated)
+                    {
+                        <a href="dashboard?tab=profile">My Profile</a>
+                        <a href="dashboard?tab=listings">My Listings</a>
+                        <a href="purchases">My Orders</a>
+                        <a href="wishlist">My Wishlist</a>
+                        <a href="dashboard?tab=trades">My Trade Requests</a>
+                    }
+                    else
+                    {
+                        <a href="login?returnUrl=dashboard">Sign In</a>
+                        <a href="register">Create Account</a>
+                        <a href="login?returnUrl=dashboard">My Listings</a>
+                        <a href="login?returnUrl=purchases">My Orders</a>
+                        <a href="wishlist">Saved Wishlist</a>
+                    }
+                </nav>
+            </div>
+
+            <!-- Legal Links -->
+            <div class="footer-col">
+                <h3 class="footer-title">Legal</h3>
+                <nav class="footer-links" aria-label="Legal and policy links">
+                    <a href="privacy">Privacy Policy</a>
+                    <a href="terms">Terms &amp; Conditions</a>
+                    <a href="help#community-guidelines">Community Guidelines</a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Bottom Footer Bar -->
+        <div class="footer-bottom">
+            <div class="footer-copy">
+                <span>&copy; @DateTime.Now.Year ReTrade. All rights reserved.</span>
+                <span class="footer-tagline">Better finds. Smarter trades. Less waste.</span>
+            </div>
+            <nav class="footer-bottom-links" aria-label="Secondary legal links">
+                <a href="privacy">Privacy</a>
+                <span class="footer-sep" aria-hidden="true">&bull;</span>
+                <a href="terms">Terms</a>
+                <span class="footer-sep" aria-hidden="true">&bull;</span>
+                <a href="contact">Contact</a>
+            </nav>
+        </div>
+    </div>
+</footer>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        Session.OnChange -= StateHasChanged;
+    }
+}

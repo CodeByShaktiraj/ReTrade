@@ -1,0 +1,267 @@
+/* =========================================================
+   ReTrade Professional Footer Stylesheet
+   Design Tokens: var(--brand), var(--brand-dark), var(--ink),
+   var(--muted), var(--line), var(--bg), var(--radius)
+   ========================================================= */
+
+.site-footer {
+    margin-top: auto;
+    background: #ffffff;
+    border-top: 1px solid var(--line);
+    color: var(--ink);
+    padding-top: 3.5rem;
+    padding-bottom: 2rem;
+    font-size: 0.92rem;
+}
+
+.footer-container {
+    width: 100%;
+}
+
+/* ---------------- Main Multi-Column Grid ---------------- */
+
+.footer-grid {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr 1fr 1fr 1fr;
+    gap: 2.5rem 1.75rem;
+}
+
+.footer-col {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---------------- Brand Column ---------------- */
+
+.footer-col-brand {
+    padding-right: 1.5rem;
+}
+
+.footer-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    text-decoration: none;
+    margin-bottom: 0.85rem;
+}
+
+.footer-brand:hover {
+    color: var(--brand-dark);
+    text-decoration: none;
+}
+
+.brand-mark {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--brand) 0%, #3f8fe0 100%);
+    color: #ffffff;
+    font-size: 1.05rem;
+    font-weight: 800;
+    box-shadow: 0 2px 4px rgba(27, 110, 194, 0.2);
+}
+
+.brand-text {
+    font-weight: 800;
+    color: var(--ink);
+}
+
+.footer-desc {
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    margin-top: 0;
+    margin-bottom: 1.15rem;
+    max-width: 320px;
+}
+
+.footer-pill-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.footer-trust-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+/* ---------------- Section Headings & Links ---------------- */
+
+.footer-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+    margin-top: 0;
+    margin-bottom: 1.15rem;
+}
+
+.footer-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.footer-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    transition: color 0.15s ease, transform 0.15s ease;
+    padding-block: 0.15rem;
+    display: inline-block;
+}
+
+.footer-links a:hover {
+    color: var(--brand);
+    text-decoration: underline;
+}
+
+/* Visible Accessibility Focus States */
+.footer-links a:focus-visible,
+.footer-brand:focus-visible,
+.footer-bottom-links a:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+/* ---------------- Bottom Footer Bar ---------------- */
+
+.footer-bottom {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.footer-copy {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.footer-tagline {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 0.82rem;
+}
+
+.footer-bottom-links {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.footer-bottom-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s ease;
+}
+
+.footer-bottom-links a:hover {
+    color: var(--brand);
+    text-decoration: underline;
+}
+
+.footer-sep {
+    color: var(--line);
+    user-select: none;
+}
+
+/* ---------------- Responsive Adaptations ---------------- */
+
+/* Tablet (medium screens) */
+@media (max-width: 992px) {
+    .site-footer {
+        padding-top: 2.75rem;
+    }
+
+    .footer-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2rem 1.5rem;
+    }
+
+    .footer-col-brand {
+        grid-column: 1 / -1;
+        padding-right: 0;
+        margin-bottom: 0.5rem;
+    }
+
+    .footer-desc {
+        max-width: 100%;
+    }
+}
+
+/* Mobile & Small Tablets */
+@media (max-width: 640px) {
+    .site-footer {
+        padding-top: 2.25rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .footer-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.75rem 1rem;
+    }
+
+    .footer-col-brand {
+        grid-column: 1 / -1;
+    }
+
+    .footer-title {
+        margin-bottom: 0.85rem;
+    }
+
+    .footer-links a {
+        padding-block: 0.35rem; /* Larger touch target for thumbs */
+        font-size: 0.88rem;
+    }
+
+    .footer-bottom {
+        margin-top: 2rem;
+        padding-top: 1.25rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .footer-copy {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+
+/* Extra small mobile screens */
+@media (max-width: 420px) {
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}

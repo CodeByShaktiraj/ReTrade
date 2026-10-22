@@ -1,0 +1,22 @@
+@page "/not-found"
+@layout MainLayout
+@inject IJSRuntime JS
+
+<PageTitle>Page not found</PageTitle>
+
+<div class="state-box">
+    <div class="state-icon" aria-hidden="true">🧭</div>
+    <div class="state-title">We couldn't find that page</div>
+    <p class="state-text">
+        The link may be outdated, or the listing you were looking for is no longer available.
+    </p>
+    <div class="state-actions">
+        <a class="btn btn-primary" href="">Go to home</a>
+        <a class="btn btn-outline" href="marketplace">Browse marketplace</a>
+        <button class="btn btn-ghost" @onclick="GoBack">Go back</button>
+    </div>
+</div>
+
+@code {
+    private Task GoBack() => JS.InvokeVoidAsync("history.back").AsTask();
+}

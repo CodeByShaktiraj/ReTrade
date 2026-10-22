@@ -1,0 +1,110 @@
+@page "/contact"
+@inject DemoSession Session
+
+<PageTitle>Contact Us — ReTrade Support</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Contact ReTrade Support</h1>
+        <p class="muted">Have questions about an order, a trade proposal, or marketplace rules? We're here to help.</p>
+    </div>
+    <div>
+        <a class="btn btn-outline" href="help">Browse Help Center</a>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+    <!-- Contact Info Panel -->
+    <div class="detail-panel">
+        <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Get in Touch</h2>
+        <p class="muted">
+            Our support and moderation team works to keep ReTrade safe, transparent, and responsive.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1.5rem;">
+            <div>
+                <span style="font-size: 0.82rem; font-weight: 700; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.2rem;">Community Support</span>
+                <span style="font-size: 1.05rem; font-weight: 600; color: var(--ink);">support@retrade.local</span>
+                <span class="muted" style="font-size: 0.88rem; display: block;">Typical response time: Within 24-48 hours</span>
+            </div>
+
+            <div style="padding-top: 1rem; border-top: 1px solid var(--line);">
+                <span style="font-size: 0.82rem; font-weight: 700; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.2rem;">Marketplace Moderation</span>
+                <span style="font-size: 1.05rem; font-weight: 600; color: var(--ink);">safety@retrade.local</span>
+                <span class="muted" style="font-size: 0.88rem; display: block;">For listing dispute resolution and content reporting</span>
+            </div>
+
+            <div style="padding-top: 1rem; border-top: 1px solid var(--line);">
+                <span style="font-size: 0.82rem; font-weight: 700; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.2rem;">Service Hours</span>
+                <span style="font-size: 0.95rem; color: var(--ink);">Monday to Saturday: 9:00 AM – 7:00 PM IST</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Form Panel -->
+    <div class="detail-panel">
+        <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Send a Message</h2>
+        
+        @if (submitted)
+        {
+            <div class="alert alert-success" role="alert" style="margin-bottom: 1rem;">
+                Thank you! Your message has been received. Our team will review your inquiry shortly.
+            </div>
+        }
+
+        <form @onsubmit="HandleSubmit">
+            <div class="filter-group" style="margin-bottom: 1rem;">
+                <label class="filter-title" for="contact-name">Your Name</label>
+                <input id="contact-name" class="form-control" type="text" required @bind="name" placeholder="Enter your full name" />
+            </div>
+
+            <div class="filter-group" style="margin-bottom: 1rem;">
+                <label class="filter-title" for="contact-email">Email Address</label>
+                <input id="contact-email" class="form-control" type="email" required @bind="email" placeholder="you@example.com" />
+            </div>
+
+            <div class="filter-group" style="margin-bottom: 1rem;">
+                <label class="filter-title" for="contact-subject">Topic</label>
+                <select id="contact-subject" class="form-select" @bind="subject">
+                    <option value="General Inquiry">General Marketplace Inquiry</option>
+                    <option value="Listing Help">Help with Listing or Photos</option>
+                    <option value="Order or Offer Question">Question about an Offer or Order</option>
+                    <option value="Trade Assistance">Item Trade or Swap Assistance</option>
+                    <option value="Report Issue">Report a Bug or Safety Concern</option>
+                </select>
+            </div>
+
+            <div class="filter-group" style="margin-bottom: 1.25rem;">
+                <label class="filter-title" for="contact-message">Message</label>
+                <textarea id="contact-message" class="form-control" rows="4" required @bind="message" placeholder="Describe your question or feedback in detail..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+                Send Message
+            </button>
+        </form>
+    </div>
+</div>
+
+@code {
+    private string name = "";
+    private string email = "";
+    private string subject = "General Inquiry";
+    private string message = "";
+    private bool submitted = false;
+
+    protected override void OnInitialized()
+    {
+        if (Session.IsAuthenticated)
+        {
+            name = Session.Current.Name;
+            email = Session.Current.Email;
+        }
+    }
+
+    private void HandleSubmit()
+    {
+        submitted = true;
+        message = "";
+    }
+}

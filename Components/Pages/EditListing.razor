@@ -1,0 +1,356 @@
+@page "/listing/edit/{Id:int}"
+@inject ProductService Products
+@inject CategoryService Categories
+@inject DemoSession Session
+@inject NavigationManager Nav
+@inject IWebHostEnvironment Env
+
+<PageTitle>Edit Listing — ReTrade</PageTitle>
+
+@if (!Session.IsAuthenticated)
+{
+    <div class="state-box">
+        <div class="state-icon" aria-hidden="true">🔒</div>
+        <div class="state-title">Sign In Required</div>
+        <p class="state-text">You must be signed in to edit listings.</p>
+        <div class="state-actions">
+            <a class="btn btn-primary" href="login?returnUrl=listing/edit/@Id">Sign In to Continue</a>
+            <a class="btn btn-outline" href="marketplace">Browse Marketplace</a>
+        </div>
+    </div>
+}
+else if (product is null)
+{
+    <div class="state-box">
+        <div class="state-icon" aria-hidden="true">⚠️</div>
+        <div class="state-title">Listing not found</div>
+        <div class="state-actions">
+            <a class="btn btn-outline" href="dashboard">Back to Dashboard</a>
+        </div>
+    </div>
+}
+else if (product.SellerId != Session.Current.Id && !Session.Current.IsAdmin)
+{
+    <div class="state-box">
+        <div class="state-icon" aria-hidden="true">🔒</div>
+        <div class="state-title">Unauthorized Access</div>
+        <p class="state-text">You can only edit listings that you own.</p>
+        <div class="state-actions">
+            <a class="btn btn-primary" href="dashboard">Go to Your Dashboard</a>
+            <a class="btn btn-outline" href="marketplace">Browse Marketplace</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <a class="section-link" href="product/@product.Id">← Back to Listing</a>
+            <h1 style="margin-top:.5rem">Edit Listing</h1>
+            <p class="muted">Updating "<strong>@product.Title</strong>" as @Session.Current.Name.</p>
+        </div>
+        <div>
+            <button class="btn btn-danger" @onclick="() => showDeleteConfirm = true">
+                🗑️ Delete Listing
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert alert-success">@statusMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+
+    <div class="detail-layout">
+        <div class="detail-panel">
+            <h2>Listing Details</h2>
+
+            <EditForm Model="product" OnValidSubmit="Save">
+                <div class="field">
+                    <label for="edit-title">Title *</label>
+                    <input id="edit-title" class="form-control" maxlength="80" @bind="product.Title" />
+                </div>
+
+                <div class="field">
+                    <label for="edit-desc">Description *</label>
+                    <textarea id="edit-desc" class="form-control" maxlength="600" @bind="product.Description"></textarea>
+                </div>
+
+                <!-- Photos Section -->
+                <div class="field">
+                    <label for="edit-upload">Product Photos</label>
+                    <InputFile id="edit-upload" class="form-control" OnChange="HandleFileSelected" multiple accept="image/png,image/jpeg,image/webp" />
+
+                    @if (currentImages.Count > 0)
+                    {
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.75rem">
+                            @foreach (var img in currentImages)
+                            {
+                                <div style="position:relative; width:80px; height:80px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1">
+                                    <img src="@img" alt="Photo" style="width:100%; height:100%; object-fit:cover" />
+                                    <button type="button" 
+                                            style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:1"
+                                            @onclick="() => RemoveImage(img)">
+                                        ✕
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="edit-price">Price (₹) *</label>
+                        <input id="edit-price" class="form-control" type="number" min="1" max="500000" step="1" @bind="product.Price" />
+                    </div>
+
+                    <div class="field">
+                        <label for="edit-condition">Condition *</label>
+                        <select id="edit-condition" class="form-select" @bind="product.Condition">
+                            @foreach (var item in Enum.GetValues<ProductCondition>())
+                            {
+                                <option value="@item">@MarketFormat.Condition(item)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="edit-category">Category *</label>
+                    <select id="edit-category" class="form-select" @bind="product.Category">
+                        @foreach (var item in categoryList)
+                        {
+                            <option value="@item">@item</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="edit-city">City *</label>
+                        <input id="edit-city" class="form-control" @bind="product.City" />
+                    </div>
+
+                    <div class="field">
+                        <label for="edit-state">State *</label>
+                        <input id="edit-state" class="form-control" @bind="product.State" />
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="edit-pincode">Pincode <span class="muted">(optional)</span></label>
+                    <input id="edit-pincode" class="form-control" maxlength="6" @bind="product.Pincode" />
+                </div>
+
+                <div class="field">
+                    <span class="field-label">Deal Options</span>
+                    <label class="form-check">
+                        <input type="checkbox" @bind="product.IsNegotiable" />
+                        <span>Price is negotiable</span>
+                    </label>
+                    <label class="form-check">
+                        <input type="checkbox" @bind="product.TradeAvailable" />
+                        <span>Open to item trades</span>
+                    </label>
+                </div>
+
+                <div style="display:flex; gap:0.75rem; margin-top:1.5rem">
+                    <button type="submit" class="btn btn-primary btn-lg" disabled="@saving">
+                        @if (saving)
+                        {
+                            <span>Saving Changes...</span>
+                        }
+                        else
+                        {
+                            <span>Save Changes</span>
+                        }
+                    </button>
+                    <a class="btn btn-outline btn-lg" href="product/@product.Id">Cancel</a>
+                </div>
+            </EditForm>
+        </div>
+
+        <div>
+            <div class="detail-panel">
+                <h2>Listing Status</h2>
+                <p>
+                    Current status: <strong>@MarketFormat.Status(product.Status)</strong>
+                </p>
+                <div style="display:grid; gap:0.5rem">
+                    @if (product.Status == ProductStatus.Active)
+                    {
+                        <button class="btn btn-outline" @onclick='() => ChangeStatus(ProductStatus.Inactive)'>
+                            Pause Listing (Make Inactive)
+                        </button>
+                        <button class="btn btn-outline" @onclick='() => ChangeStatus(ProductStatus.Sold)'>
+                            Mark as Sold
+                        </button>
+                    }
+                    else if (product.Status == ProductStatus.Inactive)
+                    {
+                        <button class="btn btn-primary" @onclick='() => ChangeStatus(ProductStatus.Active)'>
+                            Re-activate Listing
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteConfirm && product is not null)
+{
+    <div class="modal-backdrop" @onclick="() => showDeleteConfirm = false">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3>Delete Listing</h3>
+                <button class="modal-close" @onclick="() => showDeleteConfirm = false">✕</button>
+            </div>
+            <p>
+                Are you sure you want to permanently delete "<strong>@product.Title</strong>"? This action cannot be undone.
+            </p>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem">
+                <button class="btn btn-ghost" @onclick="() => showDeleteConfirm = false">Cancel</button>
+                <button class="btn btn-danger" @onclick="DeleteListing">Confirm Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Product? product;
+    private List<string> categoryList = [];
+    private List<string> currentImages = [];
+    private string? statusMessage;
+    private string? errorMessage;
+    private bool saving;
+    private bool showDeleteConfirm;
+
+    protected override void OnParametersSet()
+    {
+        LoadProduct();
+    }
+
+    private void LoadProduct()
+    {
+        product = Products.GetProductById(Id);
+        if (product != null)
+        {
+            currentImages = new List<string>(product.AllImages);
+        }
+
+        categoryList = Categories.GetAllNames();
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        var maxAllowedFiles = 4;
+        var maxFileSize = 5 * 1024 * 1024;
+
+        var uploadsDir = Path.Combine(Env.WebRootPath, "uploads");
+        if (!Directory.Exists(uploadsDir))
+            Directory.CreateDirectory(uploadsDir);
+
+        foreach (var file in e.GetMultipleFiles(maxAllowedFiles))
+        {
+            if (file.Size > maxFileSize)
+            {
+                errorMessage = $"File {file.Name} exceeds maximum allowed size of 5MB.";
+                return;
+            }
+
+            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+            if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+            {
+                errorMessage = $"Unsupported file format for {file.Name}. Use JPG, PNG, or WebP.";
+                return;
+            }
+
+            var safeFileName = $"item_{Guid.NewGuid():N}{ext}";
+            var filePath = Path.Combine(uploadsDir, safeFileName);
+
+            using var stream = file.OpenReadStream(maxFileSize);
+            using var fileStream = File.Create(filePath);
+            await stream.CopyToAsync(fileStream);
+
+            currentImages.Add($"uploads/{safeFileName}");
+        }
+    }
+
+    private void RemoveImage(string img)
+    {
+        currentImages.Remove(img);
+    }
+
+    private async Task Save()
+    {
+        if (product == null) return;
+        errorMessage = null;
+        statusMessage = null;
+        saving = true;
+
+        if (currentImages.Count > 0)
+        {
+            product.ImageUrl = currentImages[0];
+            product.AdditionalImages = currentImages.Count > 1 ? string.Join(",", currentImages.Skip(1)) : null;
+        }
+        else
+        {
+            product.ImageUrl = null;
+            product.AdditionalImages = null;
+        }
+
+        await Task.Yield();
+
+        var (ok, err) = Products.Update(product.Id, Session.Current.Id, product);
+        saving = false;
+
+        if (!ok)
+        {
+            errorMessage = err;
+            return;
+        }
+
+        statusMessage = "Listing updated successfully!";
+        Nav.NavigateTo($"product/{product.Id}");
+    }
+
+    private void ChangeStatus(ProductStatus newStatus)
+    {
+        if (product == null) return;
+        var (ok, err) = Products.SetStatus(product.Id, Session.Current.Id, newStatus, Session.Current.IsAdmin);
+        if (ok)
+        {
+            statusMessage = $"Status updated to {MarketFormat.Status(newStatus)}.";
+            LoadProduct();
+        }
+        else
+        {
+            errorMessage = err;
+        }
+    }
+
+    private void DeleteListing()
+    {
+        if (product == null) return;
+        var (ok, err) = Products.Delete(product.Id, Session.Current.Id, Session.Current.IsAdmin);
+        if (ok)
+        {
+            Nav.NavigateTo("dashboard");
+        }
+        else
+        {
+            errorMessage = err;
+            showDeleteConfirm = false;
+        }
+    }
+}

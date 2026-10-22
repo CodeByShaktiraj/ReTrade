@@ -1,0 +1,37 @@
+@inherits LayoutComponentBase
+@inject DemoSession Session
+
+<div class="page">
+    <header class="site-header">
+        <div class="container header-inner">
+            <a class="brand" href="" title="ReTrade Marketplace Home">
+                <span class="brand-mark" aria-hidden="true">R</span>
+                <span class="brand-text">ReTrade</span>
+            </a>
+
+            <NavMenu />
+        </div>
+    </header>
+
+    <main class="content container">
+        @Body
+    </main>
+
+    <SiteFooter />
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Session.InitializeAsync();
+        }
+    }
+}

@@ -1,0 +1,25 @@
+# Visual Studio and .NET Build Artifacts
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+
+# Database Files and Journals
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+marketplace.db
+
+# Sensitive Configuration and Secrets
+appsettings.Production.json
+appsettings.Development.json
+appsettings.*.local.json
+.env
+.env.*
+secrets.json
+
+# User Uploads
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep

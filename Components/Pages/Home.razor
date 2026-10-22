@@ -1,0 +1,155 @@
+@page "/"
+@inject ProductService Products
+@inject CategoryService Categories
+@inject NavigationManager Nav
+
+<PageTitle>ReTrade — Buy, Sell, Negotiate & Trade Second-Hand</PageTitle>
+
+<section class="market-entry">
+    <div class="entry-copy">
+        <h1>Find quality second-hand goods.<br />Sell, negotiate or trade items.</h1>
+        <p class="entry-sub">
+            The C2C community marketplace for pre-owned electronics, books, furniture, sports gear and more.
+            Make price offers or propose direct item exchanges without high middleman fees.
+        </p>
+    </div>
+
+    <div class="entry-search">
+        <input class="form-control"
+               type="search"
+               placeholder="Search by keywords, category, or city..."
+               aria-label="Search products"
+               @bind="query"
+               @bind:event="oninput"
+               @onkeydown="OnSearchKeydown" />
+        <button class="btn btn-primary btn-lg" @onclick="Search">Search</button>
+    </div>
+
+    <div class="entry-actions">
+        <a class="btn btn-primary" href="marketplace">Explore Marketplace</a>
+        <a class="btn btn-outline" href="sell">➕ Sell an Item</a>
+        <a class="btn btn-accent" href="dashboard">Your Dashboard</a>
+    </div>
+</section>
+
+<section class="section" id="categories">
+    <div class="section-head">
+        <h2 class="section-title">Popular Categories</h2>
+        <a class="section-link" href="marketplace">View all categories</a>
+    </div>
+
+    <div class="category-grid">
+        @foreach (var category in categoryList)
+        {
+            <a class="category-card" href="@CategoryLink(category)">
+                <span>@category</span>
+                <span class="category-count">@Products.CountInCategory(category)</span>
+            </a>
+        }
+    </div>
+</section>
+
+<section class="section" id="recent">
+    <div class="section-head">
+        <h2 class="section-title">Recently Listed Items</h2>
+        <a class="section-link" href="marketplace">Browse all listings</a>
+    </div>
+
+    @if (recent.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-title">Nothing listed yet</div>
+            <p class="state-text">New listings will show up here as soon as they are published.</p>
+            <div class="state-actions">
+                <a class="btn btn-primary" href="sell">Sell the first item</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var product in recent)
+            {
+                <ProductCard Product="product" />
+            }
+        </div>
+    }
+</section>
+
+<section class="section" id="trades">
+    <div class="section-head">
+        <h2 class="section-title">Trade & Exchange Opportunities</h2>
+        <span class="section-note">Items whose owners are open to swapping with your own pre-owned items!</span>
+    </div>
+
+    @if (trades.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-title">No trade listings right now</div>
+            <p class="state-text">Listings marked as tradeable will appear here.</p>
+        </div>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var product in trades)
+            {
+                <ProductCard Product="product" />
+            }
+        </div>
+    }
+</section>
+
+<section class="section" id="how-it-works">
+    <div class="section-head">
+        <h2 class="section-title">How ReTrade Works</h2>
+    </div>
+
+    <div class="steps">
+        <div class="step">
+            <div class="step-num">1</div>
+            <h3>List Your Item</h3>
+            <p>Upload photos, set your price or mark "Open to trades" and specify pickup city.</p>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <h3>Negotiate or Swap</h3>
+            <p>Buyers can purchase at asking price, send counter-offers, or propose item-for-item trades.</p>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <h3>Safe Exchange</h3>
+            <p>Complete the deal with Cash on Delivery or in-person pickup and leave authentic buyer reviews.</p>
+        </div>
+    </div>
+</section>
+
+@code {
+    private string query = "";
+    private List<Product> recent = [];
+    private List<Product> trades = [];
+    private List<string> categoryList = [];
+
+    protected override void OnInitialized()
+    {
+        recent = Products.Recent(8);
+        trades = Products.TradeOpportunities(4);
+        categoryList = Categories.GetAllNames();
+    }
+
+    private void Search() => Nav.NavigateTo(SearchLink(query));
+
+    private void OnSearchKeydown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            Search();
+    }
+
+    private static string SearchLink(string text) =>
+        string.IsNullOrWhiteSpace(text)
+            ? "marketplace"
+            : $"marketplace?q={Uri.EscapeDataString(text.Trim())}";
+
+    private static string CategoryLink(string category) =>
+        $"marketplace?category={Uri.EscapeDataString(category)}";
+}

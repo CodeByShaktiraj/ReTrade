@@ -1,0 +1,266 @@
+@page "/sell"
+@inject ProductService Products
+@inject CategoryService Categories
+@inject DemoSession Session
+@inject NavigationManager Nav
+@inject IWebHostEnvironment Env
+
+<PageTitle>Sell an Item — ReTrade</PageTitle>
+
+@if (!Session.IsAuthenticated)
+{
+    <div style="max-width: 520px; margin: 3rem auto; text-align: center;" class="detail-panel">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📦</div>
+        <h2>Sign In Required to List an Item</h2>
+        <p class="muted" style="margin-bottom: 1.5rem;">
+            You must be signed in with an active account to publish listings, manage pricing, and receive trade or purchase requests.
+        </p>
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+            <a href="login?returnUrl=sell" class="btn btn-primary">
+                🔑 Sign In to Continue
+            </a>
+            <a href="register" class="btn btn-outline">
+                Create an Account
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>Sell an Item</h1>
+            <p class="muted">Posting as <strong>@Session.Current.Name</strong> (@Session.Current.City). Upload clear photos and accurate details.</p>
+        </div>
+    </div>
+
+    <div class="detail-layout">
+        <div class="detail-panel">
+            <h2>Listing Details</h2>
+
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="alert alert-error" role="alert">@error</div>
+            }
+
+        <EditForm Model="draft" OnValidSubmit="Submit">
+            <div class="field">
+                <label for="title">Title *</label>
+                <input id="title" class="form-control" maxlength="80"
+                       placeholder="e.g. Mechanical Gaming Keyboard (Blue Switches)" @bind="draft.Title" />
+            </div>
+
+            <div class="field">
+                <label for="description">Description *</label>
+                <textarea id="description" class="form-control" maxlength="600"
+                          placeholder="Describe condition, reason for selling, accessories included, known defects..."
+                          @bind="draft.Description"></textarea>
+            </div>
+
+            <!-- Image Upload Section -->
+            <div class="field">
+                <label for="file-upload">Product Photos <span class="muted">(JPG, PNG, WebP up to 5MB)</span></label>
+                <InputFile id="file-upload" class="form-control" OnChange="HandleFileSelected" multiple accept="image/png,image/jpeg,image/webp" />
+                
+                @if (uploadedImages.Count > 0)
+                {
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.75rem">
+                        @foreach (var img in uploadedImages)
+                        {
+                            <div style="position:relative; width:80px; height:80px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1">
+                                <img src="@img" alt="Preview" style="width:100%; height:100%; object-fit:cover" />
+                                <button type="button" 
+                                        style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:1"
+                                        @onclick="() => RemoveImage(img)">
+                                    ✕
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="price">Price (₹) *</label>
+                    <input id="price" class="form-control" type="number" min="1" max="500000" step="1"
+                           placeholder="1200" @bind="draft.Price" />
+                </div>
+
+                <div class="field">
+                    <label for="condition">Condition *</label>
+                    <select id="condition" class="form-select" @bind="draft.Condition">
+                        @foreach (var item in Enum.GetValues<ProductCondition>())
+                        {
+                            <option value="@item">@MarketFormat.Condition(item)</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="category">Category *</label>
+                <select id="category" class="form-select" @bind="draft.Category">
+                    <option value="">-- Choose a category --</option>
+                    @foreach (var item in categoryList)
+                    {
+                        <option value="@item">@item</option>
+                    }
+                </select>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="city">City *</label>
+                    <input id="city" class="form-control" placeholder="Rajkot" @bind="draft.City" />
+                </div>
+
+                <div class="field">
+                    <label for="state">State *</label>
+                    <input id="state" class="form-control" placeholder="Gujarat" @bind="draft.State" />
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="pincode">Pincode <span class="muted">(optional)</span></label>
+                <input id="pincode" class="form-control" inputmode="numeric" maxlength="6"
+                       placeholder="360001" @bind="draft.Pincode" />
+                <div class="muted" style="font-size:.82rem; margin-top:.3rem">
+                    Only your city and state are publicly shown on the listing.
+                </div>
+            </div>
+
+            <div class="field">
+                <span class="field-label">Deal Options</span>
+                <label class="form-check">
+                    <input type="checkbox" @bind="draft.IsNegotiable" />
+                    <span>Price is negotiable (Buyers can propose counter-offers)</span>
+                </label>
+                <label class="form-check">
+                    <input type="checkbox" @bind="draft.TradeAvailable" />
+                    <span>Open to item trades (Buyers can propose item exchanges)</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg btn-block" disabled="@submitting">
+                @if (submitting)
+                {
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span>Publishing Listing...</span>
+                }
+                else
+                {
+                    <span>Publish Listing</span>
+                }
+            </button>
+        </EditForm>
+    </div>
+
+    <div>
+        <div class="detail-panel">
+            <h2>Seller Guidelines</h2>
+            <ul style="margin-bottom:0; padding-left:1.1rem; color:var(--muted); font-size:.93rem; display:grid; gap:0.5rem">
+                <li>Provide honest descriptions and disclose any wear or defects.</li>
+                <li>Photos from multiple angles increase chances of a quick sale or trade.</li>
+                <li>Whole rupee price between ₹1 and ₹5,00,000.</li>
+                <li>Enable "Open to trades" if you are willing to swap for gadgets, books, or gear.</li>
+                <li>Never share private financial information or passwords in chat.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    private Product draft = new()
+    {
+        Category = "",
+        Condition = ProductCondition.Good,
+        IsNegotiable = true
+    };
+
+    private List<string> categoryList = [];
+    private List<string> uploadedImages = [];
+    private string? error;
+    private bool submitting;
+
+    protected override void OnInitialized()
+    {
+        if (!Session.IsAuthenticated) return;
+
+        if (string.IsNullOrWhiteSpace(draft.City))
+        {
+            draft.City = Session.Current.City;
+            draft.State = Session.Current.State;
+        }
+
+        categoryList = Categories.GetAllNames();
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        error = null;
+        var maxAllowedFiles = 4;
+        var maxFileSize = 5 * 1024 * 1024; // 5 MB
+
+        var uploadsDir = Path.Combine(Env.WebRootPath, "uploads");
+        if (!Directory.Exists(uploadsDir))
+            Directory.CreateDirectory(uploadsDir);
+
+        foreach (var file in e.GetMultipleFiles(maxAllowedFiles))
+        {
+            if (file.Size > maxFileSize)
+            {
+                error = $"File {file.Name} exceeds maximum allowed size of 5MB.";
+                return;
+            }
+
+            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+            if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+            {
+                error = $"Unsupported file format for {file.Name}. Use JPG, PNG, or WebP.";
+                return;
+            }
+
+            var safeFileName = $"item_{Guid.NewGuid():N}{ext}";
+            var filePath = Path.Combine(uploadsDir, safeFileName);
+
+            using var stream = file.OpenReadStream(maxFileSize);
+            using var fileStream = File.Create(filePath);
+            await stream.CopyToAsync(fileStream);
+
+            uploadedImages.Add($"uploads/{safeFileName}");
+        }
+    }
+
+    private void RemoveImage(string img)
+    {
+        uploadedImages.Remove(img);
+    }
+
+    private async Task Submit()
+    {
+        error = null;
+        submitting = true;
+
+        if (uploadedImages.Count > 0)
+        {
+            draft.ImageUrl = uploadedImages[0];
+            if (uploadedImages.Count > 1)
+                draft.AdditionalImages = string.Join(",", uploadedImages.Skip(1));
+        }
+
+        await Task.Yield();
+
+        var (ok, message, id) = Products.Add(Session.Current.Id, draft);
+
+        if (!ok)
+        {
+            error = message;
+            submitting = false;
+            return;
+        }
+
+        Nav.NavigateTo($"product/{id}");
+    }
+}

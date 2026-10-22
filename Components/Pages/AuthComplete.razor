@@ -1,0 +1,77 @@
+@page "/auth-complete"
+@inject DemoSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Completing Sign-In — ReTrade</PageTitle>
+
+<div style="max-width:460px; margin:4rem auto; text-align:center; padding:1.5rem">
+    @if (isProcessing)
+    {
+        <div class="detail-panel" style="padding:2.5rem 1.75rem; text-align:center">
+            <div style="display:inline-grid; place-items:center; width:52px; height:52px; border-radius:50%; background:var(--brand-soft); color:var(--brand); margin-bottom:1.25rem;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite;">
+                    <line x1="12" y1="2" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="22"></line>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                    <line x1="2" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="22" y2="12"></line>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                </svg>
+            </div>
+            <h2 style="font-size:1.35rem; margin-bottom:0.4rem">Signing you in...</h2>
+            <p class="muted" style="font-size:0.92rem; margin:0">
+                Establishing your secure, isolated session for this browser tab.
+            </p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="detail-panel" style="padding:2.25rem 1.75rem">
+            <div class="alert alert-error" role="alert" style="margin-bottom:1.25rem; text-align:left;">
+                <strong>Authentication Notice:</strong><br />
+                @errorMessage
+            </div>
+            <a href="login" class="btn btn-primary btn-block">Return to Sign In</a>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private bool isProcessing = true;
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (string.IsNullOrWhiteSpace(Code))
+            {
+                isProcessing = false;
+                errorMessage = "No single-use exchange code was provided.";
+                StateHasChanged();
+                return;
+            }
+
+            var (ok, err) = await Session.ExchangeAuthCodeAsync(Code);
+            isProcessing = false;
+
+            if (!ok)
+            {
+                errorMessage = err;
+                StateHasChanged();
+                return;
+            }
+
+            var target = !string.IsNullOrWhiteSpace(ReturnUrl) ? ReturnUrl : (Session.Current.IsAdmin ? "admin" : "dashboard");
+            Nav.NavigateTo(target, replace: true);
+        }
+    }
+}

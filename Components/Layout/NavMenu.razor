@@ -1,0 +1,289 @@
+@implements IDisposable
+@inject DemoSession Session
+@inject WishlistService Wishlist
+@inject OfferService Offers
+@inject TradeService Trades
+@inject NavigationManager Nav
+
+<div class="nav-container">
+    <!-- Desktop Navigation Links -->
+    <nav class="desktop-nav" aria-label="Main navigation">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <span>Home</span>
+        </NavLink>
+        <NavLink class="nav-link" href="marketplace">
+            <span>Browse</span>
+        </NavLink>
+
+        @if (Session.IsAuthenticated)
+        {
+            <NavLink class="nav-link" href="wishlist">
+                <span>Saved</span>
+                @if (savedCount > 0)
+                {
+                    <span class="nav-counter" title="@savedCount saved items">@savedCount</span>
+                }
+            </NavLink>
+            <NavLink class="nav-link" href="dashboard">
+                <span>Dashboard</span>
+                @if (pendingCount > 0)
+                {
+                    <span class="nav-counter nav-counter-alert" title="@pendingCount pending actions">@pendingCount</span>
+                }
+            </NavLink>
+            @if (Session.Current.IsAdmin)
+            {
+                <NavLink class="nav-link nav-admin-link" href="admin">
+                    <span>🛡️ Admin</span>
+                </NavLink>
+            }
+        }
+    </nav>
+
+    <!-- Right Header Actions -->
+    <div class="nav-actions">
+        <!-- Prominent Sell CTA -->
+        <a class="btn btn-primary btn-sm nav-sell-btn" href="sell" title="Create a new listing">
+            <span class="plus-icon" aria-hidden="true">+</span>
+            <span>Sell</span>
+            <span class="desktop-only-text"> an Item</span>
+        </a>
+
+        @if (Session.IsAuthenticated)
+        {
+            <!-- User Profile Pill -->
+            <a href="dashboard" class="user-pill desktop-only" title="View Dashboard (@Session.Current.Name)">
+                <span class="user-avatar-badge">@UserInitial</span>
+                <span class="user-pill-name">@Session.Current.Name</span>
+                @if (Session.Current.IsAdmin)
+                {
+                    <span class="user-admin-tag">Admin</span>
+                }
+            </a>
+
+            <!-- Sign Out Button -->
+            <button type="button" class="btn btn-ghost btn-sm desktop-only nav-logout-btn" @onclick="HandleLogout" title="Sign out of your account">
+                Sign Out
+            </button>
+        }
+        else
+        {
+            <!-- Guest Actions: Sign In & Register buttons -->
+            <a href="login" class="btn btn-outline btn-sm desktop-only" title="Sign in to your account">
+                Sign In
+            </a>
+            <a href="register" class="btn btn-primary btn-sm desktop-only" title="Create a new account">
+                Register
+            </a>
+        }
+
+        <!-- Mobile Hamburger Toggle Button -->
+        <button type="button" 
+                class="mobile-toggle-btn mobile-only" 
+                aria-label="@(collapseNavMenu ? "Open navigation menu" : "Close navigation menu")" 
+                aria-expanded="@(!collapseNavMenu)"
+                @onclick="ToggleNavMenu">
+            @if (collapseNavMenu)
+            {
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            }
+            else
+            {
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            }
+        </button>
+    </div>
+</div>
+
+<!-- Mobile Navigation Backdrop Overlay -->
+@if (!collapseNavMenu)
+{
+    <div class="mobile-backdrop" @onclick="CloseNavMenu"></div>
+}
+
+<!-- Mobile Navigation Drawer -->
+<div class="mobile-drawer @(collapseNavMenu ? "collapsed" : "open")" aria-hidden="@collapseNavMenu">
+    <div class="mobile-drawer-content">
+        @if (Session.IsAuthenticated)
+        {
+            <!-- User Info Card in Drawer -->
+            <div class="mobile-user-card">
+                <div class="mobile-avatar">@UserInitial</div>
+                <div class="mobile-user-info">
+                    <div class="mobile-user-name">@Session.Current.Name</div>
+                    <div class="mobile-user-sub">
+                        <span>@Session.Current.City</span>
+                        @if (Session.Current.IsAdmin)
+                        {
+                            <span class="user-admin-tag">Admin</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Touch-Friendly Mobile Nav Links for Signed In User -->
+            <div class="mobile-nav-links">
+                <NavLink class="mobile-nav-item" href="" Match="NavLinkMatch.All" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">🏠</span>
+                    <span class="mobile-nav-text">Home</span>
+                </NavLink>
+
+                <NavLink class="mobile-nav-item" href="marketplace" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">🔍</span>
+                    <span class="mobile-nav-text">Browse Marketplace</span>
+                </NavLink>
+
+                <NavLink class="mobile-nav-item" href="wishlist" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">❤️</span>
+                    <span class="mobile-nav-text">Saved Wishlist</span>
+                    @if (savedCount > 0)
+                    {
+                        <span class="nav-counter">@savedCount</span>
+                    }
+                </NavLink>
+
+                <NavLink class="mobile-nav-item" href="dashboard" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">📊</span>
+                    <span class="mobile-nav-text">User Dashboard</span>
+                    @if (pendingCount > 0)
+                    {
+                        <span class="nav-counter nav-counter-alert">@pendingCount pending</span>
+                    }
+                </NavLink>
+
+                @if (Session.Current.IsAdmin)
+                {
+                    <NavLink class="mobile-nav-item mobile-admin-item" href="admin" @onclick="CloseNavMenu">
+                        <span class="mobile-nav-icon">🛡️</span>
+                        <span class="mobile-nav-text">Admin Moderation</span>
+                    </NavLink>
+                }
+            </div>
+
+            <!-- Mobile Drawer Action Footer -->
+            <div class="mobile-drawer-footer">
+                <a class="btn btn-primary btn-block mobile-sell-btn" href="sell" @onclick="CloseNavMenu">
+                    ➕ List an Item for Sale
+                </a>
+                <button type="button" class="btn btn-outline btn-block" @onclick="HandleLogout" style="margin-top: 0.35rem; font-size: 0.88rem;">
+                    🚪 Sign Out (@Session.Current.Name)
+                </button>
+            </div>
+        }
+        else
+        {
+            <!-- Guest Welcome Card in Drawer -->
+            <div class="mobile-guest-card">
+                <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.25rem;">
+                    Welcome to ReTrade
+                </div>
+                <p class="muted" style="font-size: 0.85rem; margin-bottom: 0.85rem;">
+                    Sign in to buy, sell, make price offers, and exchange items.
+                </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <a href="login" class="btn btn-primary btn-sm" @onclick="CloseNavMenu">
+                        🔑 Sign In
+                    </a>
+                    <a href="register" class="btn btn-outline btn-sm" @onclick="CloseNavMenu">
+                        Register
+                    </a>
+                </div>
+            </div>
+
+            <div class="mobile-nav-links">
+                <NavLink class="mobile-nav-item" href="" Match="NavLinkMatch.All" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">🏠</span>
+                    <span class="mobile-nav-text">Home</span>
+                </NavLink>
+
+                <NavLink class="mobile-nav-item" href="marketplace" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">🔍</span>
+                    <span class="mobile-nav-text">Browse Marketplace</span>
+                </NavLink>
+
+                <NavLink class="mobile-nav-item" href="wishlist" @onclick="CloseNavMenu">
+                    <span class="mobile-nav-icon">❤️</span>
+                    <span class="mobile-nav-text">Saved Items</span>
+                </NavLink>
+            </div>
+
+            <div class="mobile-drawer-footer">
+                <a class="btn btn-primary btn-block mobile-sell-btn" href="sell" @onclick="CloseNavMenu">
+                    ➕ List an Item for Sale
+                </a>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private int savedCount;
+    private int pendingCount;
+
+    private char UserInitial =>
+        string.IsNullOrWhiteSpace(Session.Current.Name) ? 'U' : char.ToUpperInvariant(Session.Current.Name[0]);
+
+    protected override void OnInitialized()
+    {
+        Session.OnChange += OnSessionChanged;
+        Nav.LocationChanged += OnLocationChanged;
+        UpdateCounts();
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void CloseNavMenu()
+    {
+        collapseNavMenu = true;
+    }
+
+    private async Task HandleLogout()
+    {
+        await Session.LogoutAsync();
+        CloseNavMenu();
+        Nav.NavigateTo("login");
+    }
+
+    private void OnSessionChanged()
+    {
+        UpdateCounts();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        collapseNavMenu = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateCounts()
+    {
+        if (Session.IsAuthenticated)
+        {
+            savedCount = Wishlist.GetUserWishlistIds(Session.Current.Id).Count;
+            pendingCount = Offers.GetPendingCount(Session.Current.Id) + Trades.GetPendingCount(Session.Current.Id);
+        }
+        else
+        {
+            savedCount = 0;
+            pendingCount = 0;
+        }
+    }
+
+    public void Dispose()
+    {
+        Session.OnChange -= OnSessionChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

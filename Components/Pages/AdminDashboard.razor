@@ -1,0 +1,553 @@
+@page "/admin"
+@inject ProductService Products
+@inject OrderService Orders
+@inject TradeService Trades
+@inject ReportService Reports
+@inject CategoryService Categories
+@inject AdoNetDbService Db
+@inject DemoSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Admin Portal — ReTrade Moderation</PageTitle>
+
+@if (!Session.IsAuthenticated)
+{
+    <div class="state-box" style="margin-top:2rem; border-left:4px solid #dc2626">
+        <div class="state-icon" aria-hidden="true">🔒</div>
+        <div class="state-title">Administrator Authentication Required</div>
+        <p class="state-text">
+            You must be signed in with an administrator account to access platform moderation, reports, and system settings.
+            Without signing in, neither users nor administrators can access or switch roles.
+        </p>
+        <div class="state-actions" style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap">
+            <a class="btn btn-primary" href="login?returnUrl=admin">
+                🔑 Sign In as Administrator
+            </a>
+            <a class="btn btn-ghost" href="">Back to Home</a>
+        </div>
+    </div>
+}
+else if (!Session.Current.IsAdmin)
+{
+    <div class="state-box" style="margin-top:2rem; border-left:4px solid #dc2626">
+        <div class="state-icon" aria-hidden="true">🔒</div>
+        <div class="state-title">Access Denied: Administrator Role Required</div>
+        <p class="state-text">
+            You are currently signed in as <strong>@Session.Current.Name</strong> (Role: @Session.Current.Role).
+            Only administrators are authorized to access the moderation portal.
+        </p>
+        <div class="state-actions" style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap">
+            <a class="btn btn-primary" href="login?returnUrl=admin">
+                Sign In with Admin Account
+            </a>
+            <a class="btn btn-outline" href="dashboard">Return to User Dashboard</a>
+            <a class="btn btn-ghost" href="">Back to Home</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>ReTrade Administration & Moderation</h1>
+            <p class="muted">
+                Admin session: <strong>@Session.Current.Name</strong> • Managing platform integrity, listings, reports and users.
+            </p>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <a class="btn btn-outline" href="dashboard">My Dashboard</a>
+            <a class="btn btn-ghost" href="marketplace">Marketplace</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(feedbackMessage))
+    {
+        <div class="alert alert-success" role="alert">@feedbackMessage</div>
+    }
+
+    <!-- Admin Navigation Tabs -->
+    <div class="filter-actions" style="margin-bottom:1.5rem; display:flex; gap:0.5rem; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; padding-bottom:0.75rem">
+        <button class="btn @(adminTab == "overview" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "overview"'>
+            📊 Metrics & Overview
+        </button>
+        <button class="btn @(adminTab == "listings" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "listings"'>
+            📦 Listing Moderation (@allProducts.Count)
+        </button>
+        <button class="btn @(adminTab == "reports" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "reports"'>
+            🚩 Reports (@allReports.Count(r => r.Status == ReportStatus.Pending) pending)
+        </button>
+        <button class="btn @(adminTab == "users" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "users"'>
+            👥 User Management (@allUsers.Count)
+        </button>
+        <button class="btn @(adminTab == "orders" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "orders"'>
+            🛍️ Orders Log (@allOrders.Count)
+        </button>
+        <button class="btn @(adminTab == "trades" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "trades"'>
+            🔄 Trades Log (@allTrades.Count)
+        </button>
+        <button class="btn @(adminTab == "categories" ? "btn-primary" : "btn-outline") btn-sm" @onclick='() => adminTab = "categories"'>
+            🏷️ Categories
+        </button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW & METRICS -->
+    @if (adminTab == "overview")
+    {
+        <div class="overview-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:1rem; margin-bottom:1.5rem">
+            <div class="detail-panel" style="border-left:4px solid var(--brand)">
+                <span class="muted" style="font-size:0.8rem; font-weight:700; text-transform:uppercase">Registered Users</span>
+                <div style="font-size:1.8rem; font-weight:800; color:var(--ink); margin-top:0.25rem">@allUsers.Count</div>
+                <span class="muted" style="font-size:0.85rem">Active: @allUsers.Count(u => u.IsActive)</span>
+            </div>
+
+            <div class="detail-panel" style="border-left:4px solid #16a34a">
+                <span class="muted" style="font-size:0.8rem; font-weight:700; text-transform:uppercase">Active Listings</span>
+                <div style="font-size:1.8rem; font-weight:800; color:#16a34a; margin-top:0.25rem">
+                    @allProducts.Count(p => p.Status == ProductStatus.Active)
+                </div>
+                <span class="muted" style="font-size:0.85rem">Total in DB: @allProducts.Count</span>
+            </div>
+
+            <div class="detail-panel" style="border-left:4px solid var(--accent)">
+                <span class="muted" style="font-size:0.8rem; font-weight:700; text-transform:uppercase">Total GMV (Orders)</span>
+                <div style="font-size:1.8rem; font-weight:800; color:var(--accent); margin-top:0.25rem">
+                    @MarketFormat.Inr(Orders.GetTotalRevenue())
+                </div>
+                <span class="muted" style="font-size:0.85rem">@allOrders.Count transactions</span>
+            </div>
+
+            <div class="detail-panel" style="border-left:4px solid #d97706">
+                <span class="muted" style="font-size:0.8rem; font-weight:700; text-transform:uppercase">Trade Proposals</span>
+                <div style="font-size:1.8rem; font-weight:800; color:#d97706; margin-top:0.25rem">@allTrades.Count</div>
+                <span class="muted" style="font-size:0.85rem">Completed: @allTrades.Count(t => t.Status == TradeStatus.Completed)</span>
+            </div>
+
+            <div class="detail-panel" style="border-left:4px solid #dc2626">
+                <span class="muted" style="font-size:0.8rem; font-weight:700; text-transform:uppercase">Pending Reports</span>
+                <div style="font-size:1.8rem; font-weight:800; color:#dc2626; margin-top:0.25rem">
+                    @allReports.Count(r => r.Status == ReportStatus.Pending)
+                </div>
+                <span class="muted" style="font-size:0.85rem">Require moderation</span>
+            </div>
+        </div>
+
+        <div class="detail-panel">
+            <h2>System Health & Security</h2>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem; font-size:0.92rem">
+                <div>
+                    <span class="muted" style="display:block">Database Connection:</span>
+                    <strong>@(Db.IsTurso ? "Turso Cloud libSQL (Managed Cloud Database)" : "Local SQLite (ADO.NET Direct Connection)")</strong>
+                </div>
+                <div>
+                    <span class="muted" style="display:block">Authentication Scheme:</span>
+                    <strong>SHA-256 Hashing with Custom Salt</strong>
+                </div>
+                <div>
+                    <span class="muted" style="display:block">Server Environment:</span>
+                    <strong>ASP.NET Core .NET 10.0 Interactive Server</strong>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- TAB 2: LISTINGS MODERATION -->
+    @if (adminTab == "listings")
+    {
+        <div class="detail-panel" style="overflow-x:auto">
+            <h2>All Marketplace Listings</h2>
+            <table class="table" style="width:100%; border-collapse:collapse; font-size:0.92rem">
+                <thead>
+                    <tr style="border-bottom:2px solid #e2e8f0; text-align:left">
+                        <th style="padding:0.6rem">ID</th>
+                        <th style="padding:0.6rem">Item</th>
+                        <th style="padding:0.6rem">Seller</th>
+                        <th style="padding:0.6rem">Category</th>
+                        <th style="padding:0.6rem">Price</th>
+                        <th style="padding:0.6rem">Status</th>
+                        <th style="padding:0.6rem; text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in allProducts)
+                    {
+                        <tr style="border-bottom:1px solid #f1f5f9">
+                            <td style="padding:0.6rem">#@p.Id</td>
+                            <td style="padding:0.6rem">
+                                <a href="product/@p.Id" style="font-weight:600; color:inherit">@p.Title</a>
+                            </td>
+                            <td style="padding:0.6rem">@Session.NameFor(p.SellerId)</td>
+                            <td style="padding:0.6rem">@p.Category</td>
+                            <td style="padding:0.6rem; font-weight:700">@MarketFormat.Inr(p.Price)</td>
+                            <td style="padding:0.6rem">
+                                <span class="badge @(p.Status == ProductStatus.Active ? "badge-condition" : "badge-sold")">
+                                    @MarketFormat.Status(p.Status)
+                                </span>
+                            </td>
+                            <td style="padding:0.6rem; text-align:right">
+                                <div style="display:inline-flex; gap:0.35rem">
+                                    <a class="btn btn-outline btn-sm" href="listing/edit/@p.Id">Edit</a>
+                                    @if (p.Status == ProductStatus.Active)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick='() => AdminToggleStatus(p.Id, ProductStatus.Inactive)'>Pause</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-primary btn-sm" @onclick='() => AdminToggleStatus(p.Id, ProductStatus.Active)'>Activate</button>
+                                    }
+                                    <button class="btn btn-danger btn-sm" @onclick="() => AdminDeleteListing(p.Id)">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- TAB 3: REPORTS MANAGEMENT -->
+    @if (adminTab == "reports")
+    {
+        <div class="detail-panel">
+            <h2>User Reports & Moderation Queue</h2>
+            @if (allReports.Count == 0)
+            {
+                <p class="muted">No reports submitted. The marketplace is running smoothly!</p>
+            }
+            else
+            {
+                <div style="display:grid; gap:1rem">
+                    @foreach (var rep in allReports)
+                    {
+                        <div class="detail-panel" style="background:#f8fafc; border-left:4px solid @(rep.Status == ReportStatus.Pending ? "#dc2626" : "#16a34a")">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem">
+                                <div>
+                                    <span class="badge @(rep.Status == ReportStatus.Pending ? "badge-sold" : "badge-trade")">
+                                        @MarketFormat.ReportStatus(rep.Status)
+                                    </span>
+                                    <strong style="margin-left:0.5rem">@rep.Reason</strong>
+                                    <div class="muted" style="font-size:0.88rem; margin-top:0.25rem">
+                                        Reported by <strong>@rep.ReporterName</strong> on @MarketFormat.When(rep.CreatedAt)
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(rep.ReportedProductTitle))
+                                    {
+                                        <div style="margin-top:0.35rem">
+                                            Reported Item: <a href="product/@rep.ReportedProductId">@rep.ReportedProductTitle</a>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(rep.Description))
+                                    {
+                                        <p style="margin-top:0.5rem; margin-bottom:0.25rem; font-size:0.9rem; font-style:italic">
+                                            User explanation: "{rep.Description}"
+                                        </p>
+                                    }
+                                </div>
+
+                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap">
+                                    @if (rep.Status == ReportStatus.Pending)
+                                    {
+                                        @if (rep.ReportedProductId.HasValue)
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => ResolveReportAndDelete(rep.Id, rep.ReportedProductId.Value)">
+                                                Resolve & Delete Listing
+                                            </button>
+                                        }
+                                        <button class="btn btn-primary btn-sm" @onclick="() => ResolveReport(rep.Id, ReportStatus.Resolved)">
+                                            Resolve & Keep
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => ResolveReport(rep.Id, ReportStatus.Dismissed)">
+                                            Dismiss
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- TAB 4: USER MANAGEMENT -->
+    @if (adminTab == "users")
+    {
+        <div class="detail-panel" style="overflow-x:auto">
+            <h2>Registered Users</h2>
+            <table class="table" style="width:100%; border-collapse:collapse; font-size:0.92rem">
+                <thead>
+                    <tr style="border-bottom:2px solid #e2e8f0; text-align:left">
+                        <th style="padding:0.6rem">ID</th>
+                        <th style="padding:0.6rem">Name</th>
+                        <th style="padding:0.6rem">Email</th>
+                        <th style="padding:0.6rem">Location</th>
+                        <th style="padding:0.6rem">Role</th>
+                        <th style="padding:0.6rem">Status</th>
+                        <th style="padding:0.6rem; text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in allUsers)
+                    {
+                        <tr style="border-bottom:1px solid #f1f5f9">
+                            <td style="padding:0.6rem">#@u.Id</td>
+                            <td style="padding:0.6rem; font-weight:600">@u.FullName</td>
+                            <td style="padding:0.6rem">@u.Email</td>
+                            <td style="padding:0.6rem">@u.City, @u.State</td>
+                            <td style="padding:0.6rem">
+                                <span class="badge @(u.Role == "Admin" ? "badge-trade" : "badge-demo")">@u.Role</span>
+                                @if (AdoNetDbService.IsProtectedAdmin(u))
+                                {
+                                    <span class="badge badge-subtle" style="margin-left:0.35rem; font-size:0.75rem; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd">Protected</span>
+                                }
+                            </td>
+                            <td style="padding:0.6rem">
+                                <span class="badge @(u.IsActive ? "badge-condition" : "badge-sold")">
+                                    @(u.IsActive ? "Active" : "Suspended")
+                                </span>
+                            </td>
+                            <td style="padding:0.6rem; text-align:right">
+                                <div style="display:inline-flex; gap:0.35rem">
+                                    @if (AdoNetDbService.IsProtectedAdmin(u))
+                                    {
+                                        <button class="btn btn-ghost btn-sm" disabled title="Primary admin account is permanently protected">Protected Admin</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-outline btn-sm" @onclick="() => ToggleUserActive(u.Id, !u.IsActive)">
+                                            @(u.IsActive ? "Suspend" : "Unsuspend")
+                                        </button>
+                                        @if (u.Role == "User")
+                                        {
+                                            <button class="btn btn-primary btn-sm" @onclick='() => ChangeUserRole(u.Id, "Admin")'>Make Admin</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-ghost btn-sm" @onclick='() => ChangeUserRole(u.Id, "User")'>Demote</button>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- TAB 5: ORDERS LOG -->
+    @if (adminTab == "orders")
+    {
+        <div class="detail-panel" style="overflow-x:auto">
+            <h2>Platform Orders Ledger</h2>
+            <table class="table" style="width:100%; border-collapse:collapse; font-size:0.92rem">
+                <thead>
+                    <tr style="border-bottom:2px solid #e2e8f0; text-align:left">
+                        <th style="padding:0.6rem">Order</th>
+                        <th style="padding:0.6rem">Product</th>
+                        <th style="padding:0.6rem">Buyer</th>
+                        <th style="padding:0.6rem">Seller</th>
+                        <th style="padding:0.6rem">Amount</th>
+                        <th style="padding:0.6rem">Payment</th>
+                        <th style="padding:0.6rem">Status</th>
+                        <th style="padding:0.6rem">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in allOrders)
+                    {
+                        <tr style="border-bottom:1px solid #f1f5f9">
+                            <td style="padding:0.6rem; font-weight:700">#@o.Id</td>
+                            <td style="padding:0.6rem">
+                                <a href="product/@o.ProductId">@o.ProductTitle</a>
+                            </td>
+                            <td style="padding:0.6rem">@o.BuyerName</td>
+                            <td style="padding:0.6rem">@Session.NameFor(o.SellerId)</td>
+                            <td style="padding:0.6rem; font-weight:700; color:var(--brand)">@MarketFormat.Inr(o.Amount)</td>
+                            <td style="padding:0.6rem">@MarketFormat.Payment(o.Payment)</td>
+                            <td style="padding:0.6rem">
+                                <span class="badge badge-condition">@MarketFormat.OrderStatus(o.Status)</span>
+                            </td>
+                            <td style="padding:0.6rem; font-size:0.85rem">@MarketFormat.When(o.CreatedAt)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- TAB 6: TRADES LOG -->
+    @if (adminTab == "trades")
+    {
+        <div class="detail-panel" style="overflow-x:auto">
+            <h2>Platform Trade Swaps Ledger</h2>
+            <table class="table" style="width:100%; border-collapse:collapse; font-size:0.92rem">
+                <thead>
+                    <tr style="border-bottom:2px solid #e2e8f0; text-align:left">
+                        <th style="padding:0.6rem">ID</th>
+                        <th style="padding:0.6rem">Target Item</th>
+                        <th style="padding:0.6rem">Offered Item</th>
+                        <th style="padding:0.6rem">Proposer</th>
+                        <th style="padding:0.6rem">Extra Cash</th>
+                        <th style="padding:0.6rem">Status</th>
+                        <th style="padding:0.6rem">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in allTrades)
+                    {
+                        <tr style="border-bottom:1px solid #f1f5f9">
+                            <td style="padding:0.6rem; font-weight:700">#@t.Id</td>
+                            <td style="padding:0.6rem">@t.TargetProductTitle</td>
+                            <td style="padding:0.6rem">@t.OfferedProductTitle</td>
+                            <td style="padding:0.6rem">@t.FromUserName</td>
+                            <td style="padding:0.6rem; font-weight:600">@MarketFormat.Inr(t.ExtraCash)</td>
+                            <td style="padding:0.6rem">
+                                <span class="badge badge-trade">@MarketFormat.TradeStatus(t.Status)</span>
+                            </td>
+                            <td style="padding:0.6rem; font-size:0.85rem">@MarketFormat.When(t.CreatedAt)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- TAB 7: CATEGORIES -->
+    @if (adminTab == "categories")
+    {
+        <div class="detail-layout">
+            <div class="detail-panel">
+                <h2>Manage Categories</h2>
+                <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem">
+                    <input class="form-control" placeholder="New Category Name" @bind="newCategoryName" />
+                    <button class="btn btn-primary" @onclick="AddCategory">Add Category</button>
+                </div>
+
+                <div style="display:grid; gap:0.5rem">
+                    @foreach (var c in allCategories)
+                    {
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:#f8fafc; border-radius:8px">
+                            <span style="font-weight:600">@c.Name</span>
+                            <button class="btn btn-ghost btn-sm" @onclick="() => DeleteCategory(c.Id)">Delete</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private string adminTab = "overview";
+    private string? feedbackMessage;
+
+    private List<Product> allProducts = [];
+    private List<Report> allReports = [];
+    private List<User> allUsers = [];
+    private List<ShopOrder> allOrders = [];
+    private List<TradeRequest> allTrades = [];
+    private List<Category> allCategories = [];
+
+    private string newCategoryName = "";
+
+    protected override void OnInitialized()
+    {
+        Session.OnChange += StateHasChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Session.Current.IsAdmin)
+        {
+            LoadAdminData();
+        }
+    }
+
+    private void LoadAdminData()
+    {
+        allProducts = Products.AllForAdmin();
+        allReports = Reports.GetAllReports();
+        allUsers = Db.GetAllUsers();
+        allOrders = Orders.GetAllForAdmin();
+        allTrades = Trades.GetAllForAdmin();
+        allCategories = Categories.GetAll();
+    }
+
+    private void AdminToggleStatus(int productId, ProductStatus newStatus)
+    {
+        var (ok, _) = Products.SetStatus(productId, Session.Current.Id, newStatus, isAdmin: true);
+        if (ok)
+        {
+            feedbackMessage = $"Product #{productId} status changed to {MarketFormat.Status(newStatus)}.";
+            LoadAdminData();
+        }
+    }
+
+    private void AdminDeleteListing(int productId)
+    {
+        var (ok, _) = Products.Delete(productId, Session.Current.Id, isAdmin: true);
+        if (ok)
+        {
+            feedbackMessage = $"Product #{productId} permanently removed by administrator.";
+            LoadAdminData();
+        }
+    }
+
+    private void ResolveReport(int reportId, ReportStatus status)
+    {
+        Reports.ResolveReport(reportId, status, "Reviewed by administrator.");
+        feedbackMessage = $"Report #{reportId} marked as {MarketFormat.ReportStatus(status)}.";
+        LoadAdminData();
+    }
+
+    private void ResolveReportAndDelete(int reportId, int productId)
+    {
+        Products.Delete(productId, Session.Current.Id, isAdmin: true);
+        Reports.ResolveReport(reportId, ReportStatus.Resolved, "Listing violated marketplace terms and was removed.");
+        feedbackMessage = $"Listing #{productId} deleted and Report #{reportId} resolved.";
+        LoadAdminData();
+    }
+
+    private void ToggleUserActive(int userId, bool isActive)
+    {
+        var ok = Db.SetUserActive(userId, isActive);
+        if (!ok)
+        {
+            feedbackMessage = "Action denied: The primary administrator (admin@retrade.com) and the last active administrator cannot be suspended.";
+        }
+        else
+        {
+            feedbackMessage = $"User #{userId} is now {(isActive ? "Active" : "Suspended")}.";
+        }
+        LoadAdminData();
+    }
+
+    private void ChangeUserRole(int userId, string role)
+    {
+        var ok = Db.SetUserRole(userId, role);
+        if (!ok)
+        {
+            feedbackMessage = "Action denied: The primary administrator (admin@retrade.com) and the last active administrator cannot be demoted.";
+        }
+        else
+        {
+            feedbackMessage = $"User #{userId} role updated to {role}.";
+        }
+        LoadAdminData();
+    }
+
+    private void AddCategory()
+    {
+        if (string.IsNullOrWhiteSpace(newCategoryName)) return;
+        Categories.Add(newCategoryName);
+        newCategoryName = "";
+        feedbackMessage = "Category added.";
+        LoadAdminData();
+    }
+
+    private void DeleteCategory(int catId)
+    {
+        Categories.Delete(catId);
+        feedbackMessage = "Category deleted.";
+        LoadAdminData();
+    }
+}

@@ -1,0 +1,196 @@
+@page "/purchases"
+@inject OrderService Orders
+@inject ProductService Products
+@inject DemoSession Session
+@inject NavigationManager Nav
+
+<PageTitle>My Purchases — Marketplace</PageTitle>
+
+@if (!Session.IsAuthenticated)
+{
+    <div style="max-width: 520px; margin: 3rem auto; text-align: center;" class="detail-panel">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🛍️</div>
+        <h2>Sign In to View Purchases</h2>
+        <p class="muted" style="margin-bottom: 1.5rem;">
+            Please sign in to view your purchase records and uploaded listings.
+        </p>
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+            <a href="login?returnUrl=purchases" class="btn btn-primary">
+                🔑 Sign In to Continue
+            </a>
+            <a href="register" class="btn btn-outline">
+                Create an Account
+            </a>
+        </div>
+    </div>
+}
+else
+{
+<div class="page-head">
+    <div>
+        <h1>My Purchases & Orders</h1>
+        <p class="muted">
+            Viewing records for <strong>@Session.Current.Name</strong> (@Session.Current.City).
+            Stored and queried via <strong>ADO.NET</strong> in SQLite (<span style="font-family:monospace; font-size:0.85em">marketplace.db</span>).
+        </p>
+    </div>
+    <div>
+        <a class="btn btn-outline" href="marketplace">Browse Marketplace</a>
+        <a class="btn btn-primary" href="sell">Sell an Item</a>
+    </div>
+</div>
+
+<div class="filter-actions" style="margin-bottom:1.5rem; display:flex; gap:0.5rem">
+    <button class="btn @(activeTab == "purchases" ? "btn-primary" : "btn-outline")"
+            @onclick='() => activeTab = "purchases"'>
+        🛍️ Products Bought (@buyerOrders.Count)
+    </button>
+    <button class="btn @(activeTab == "uploads" ? "btn-primary" : "btn-outline")"
+            @onclick='() => activeTab = "uploads"'>
+        📦 My Uploaded Items (@myListings.Count)
+    </button>
+</div>
+
+@if (activeTab == "purchases")
+{
+    @if (buyerOrders.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-icon" aria-hidden="true">🛍️</div>
+            <div class="state-title">No purchases yet</div>
+            <p class="state-text">
+                You haven't bought any items yet as @Session.Current.Name.
+                Browse listings in the marketplace and use <strong>Buy Now</strong> to make an instant purchase!
+            </p>
+            <div class="state-actions">
+                <a class="btn btn-primary btn-lg" href="marketplace">Browse Marketplace</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="detail-panel" style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; background:#f8fafc">
+            <div>
+                <span class="muted" style="font-size:0.88rem; text-transform:uppercase; letter-spacing:0.05em; font-weight:700">Purchase Summary</span>
+                <div style="font-size:1.35rem; font-weight:800; color:var(--ink)">
+                    @buyerOrders.Count @(buyerOrders.Count == 1 ? "Product" : "Products") Bought
+                </div>
+            </div>
+            <div>
+                <span class="muted" style="font-size:0.88rem; text-transform:uppercase; letter-spacing:0.05em; font-weight:700">Total Spent</span>
+                <div style="font-size:1.35rem; font-weight:800; color:var(--brand)">
+                    @MarketFormat.Inr(buyerOrders.Sum(o => o.Amount))
+                </div>
+            </div>
+            <div>
+                <span class="badge" style="background:#e0f2fe; color:#0369a1; padding:0.4rem 0.75rem; font-size:0.8rem">
+                    ⚡ SQLite Database • ADO.NET Connected
+                </span>
+            </div>
+        </div>
+
+        <div style="display:grid; gap:1.2rem">
+            @foreach (var order in buyerOrders)
+            {
+                <div class="detail-panel" style="border-left: 4px solid var(--brand); padding: 1.25rem 1.5rem">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.75rem">
+                        <div>
+                            <div class="badge-row" style="margin-bottom:0.35rem">
+                                <span class="badge" style="background:var(--brand-soft); color:var(--brand-dark); font-weight:700">
+                                    Order #@order.Id
+                                </span>
+                                <span class="badge" style="background:#e9f7ef; color:#14663a">
+                                    ✓ Bought & Confirmed
+                                </span>
+                                <span class="badge badge-demo">
+                                    ADO.NET Record
+                                </span>
+                            </div>
+                            <h2 style="margin-bottom:0.25rem; font-size:1.25rem">
+                                <a href="product/@order.ProductId" style="color:inherit; text-decoration:none">
+                                    @order.ProductTitle
+                                </a>
+                            </h2>
+                            <div class="muted" style="font-size:0.88rem">
+                                Sold by <strong>@Session.NameFor(order.SellerId)</strong> • Purchased on @MarketFormat.When(order.CreatedAt)
+                            </div>
+                        </div>
+
+                        <div style="text-align:right">
+                            <div class="price" style="font-size:1.45rem; color:var(--brand)">
+                                @MarketFormat.Inr(order.Amount)
+                            </div>
+                            <span class="badge" style="background:#f1f5f9; color:var(--muted); font-size:0.75rem">
+                                @MarketFormat.Payment(order.Payment)
+                            </span>
+                        </div>
+                    </div>
+
+                    <div style="background:#f8fafc; border-radius:10px; padding:0.85rem 1rem; margin-top:0.75rem; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem; font-size:0.9rem">
+                        <div>
+                            <span class="muted" style="display:block; font-size:0.78rem; font-weight:600; text-transform:uppercase">Shipping Recipient</span>
+                            <strong>@order.BuyerName</strong> (@order.Phone)
+                        </div>
+                        <div>
+                            <span class="muted" style="display:block; font-size:0.78rem; font-weight:600; text-transform:uppercase">Delivery Address</span>
+                            <span>@order.Address, @order.City, @order.State - @order.Pincode</span>
+                        </div>
+                        <div style="display:flex; align-items:center; justify-content:flex-end">
+                            <a class="btn btn-outline" href="product/@order.ProductId" style="font-size:0.88rem; padding:0.45rem 0.9rem">
+                                View Item Details →
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    @if (myListings.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-icon" aria-hidden="true">📦</div>
+            <div class="state-title">No items uploaded yet</div>
+            <p class="state-text">
+                You haven't listed any items under @Session.Current.Name.
+                Upload your second-hand items to store them in the database using ADO.NET!
+            </p>
+            <div class="state-actions">
+                <a class="btn btn-primary btn-lg" href="sell">Sell an Item Now</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var item in myListings)
+            {
+                <ProductCard Product="item" />
+            }
+        </div>
+    }
+}
+}
+
+@code {
+    private string activeTab = "purchases";
+    private List<ShopOrder> buyerOrders = [];
+    private List<Product> myListings = [];
+    private int lastUserId = -1;
+
+    protected override void OnParametersSet()
+    {
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        if (!Session.IsAuthenticated) return;
+
+        lastUserId = Session.Current.Id;
+        buyerOrders = Orders.ForBuyer(Session.Current.Id);
+        myListings = Products.ForSeller(Session.Current.Id);
+    }
+}

@@ -1,0 +1,140 @@
+@page "/seller/{Id:int}"
+@inject ProductService Products
+@inject ReviewService Reviews
+@inject DemoSession Session
+
+<PageTitle>Seller Profile — ReTrade</PageTitle>
+
+@if (seller is null)
+{
+    <div class="state-box">
+        <div class="state-icon" aria-hidden="true">👤</div>
+        <div class="state-title">Seller Not Found</div>
+        <p class="state-text">We couldn't find an account for this seller.</p>
+        <div class="state-actions">
+            <a class="btn btn-primary" href="marketplace">Browse Marketplace</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <a class="section-link" href="marketplace">← Back to Marketplace</a>
+            <h1 style="margin-top:.5rem">@seller.FullName</h1>
+            <p class="muted">
+                Based in <strong>@seller.City, @seller.State</strong> • Member since @MarketFormat.When(seller.CreatedAt)
+            </p>
+        </div>
+    </div>
+
+    <!-- Seller Summary Card -->
+    <div class="detail-panel" style="margin-bottom:2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1.5rem">
+        <div style="display:flex; align-items:center; gap:1.25rem">
+            <div style="width:64px; height:64px; border-radius:50%; background:var(--brand-soft); color:var(--brand); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.6rem">
+                @char.ToUpperInvariant(seller.FullName[0])
+            </div>
+            <div>
+                <h2 style="margin-bottom:0.25rem; font-size:1.3rem">@seller.FullName</h2>
+                <div style="font-size:0.95rem">
+                    @if (rating.Count > 0)
+                    {
+                        <span style="color:#d97706; font-weight:700">★ @rating.Average.ToString("0.0")</span>
+                        <span class="muted" style="margin-left:0.35rem">(@rating.Count @(rating.Count == 1 ? "review" : "reviews"))</span>
+                    }
+                    else
+                    {
+                        <span class="muted">No reviews yet</span>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(seller.Bio))
+                {
+                    <p style="margin-top:0.4rem; margin-bottom:0; font-size:0.92rem; color:var(--muted)">@seller.Bio</p>
+                }
+            </div>
+        </div>
+
+        <div>
+            <span class="badge @(seller.IsActive ? "badge-condition" : "badge-sold")" style="padding:0.5rem 0.85rem; font-size:0.88rem">
+                @(seller.IsActive ? "Active Member" : "Account Suspended")
+            </span>
+        </div>
+    </div>
+
+    <!-- Active Listings by this seller -->
+    <section class="section" style="margin-top:0">
+        <div class="section-head">
+            <h2 class="section-title">Active Listings by @seller.FullName (@sellerListings.Count)</h2>
+        </div>
+
+        @if (sellerListings.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No active listings</div>
+                <p class="state-text">This seller currently has no items available for sale or trade.</p>
+            </div>
+        }
+        else
+        {
+            <div class="grid">
+                @foreach (var item in sellerListings)
+                {
+                    <ProductCard Product="item" />
+                }
+            </div>
+        }
+    </section>
+
+    <!-- Reviews Section -->
+    <section class="section" style="margin-top:2.5rem">
+        <div class="section-head">
+            <h2 class="section-title">Buyer Reviews & Reputation (@reviewsList.Count)</h2>
+        </div>
+
+        @if (reviewsList.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-title">No reviews posted yet</div>
+                <p class="state-text">Feedback will appear here once buyers complete transactions with this seller.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; gap:1rem">
+                @foreach (var rev in reviewsList)
+                {
+                    <div class="detail-panel" style="background:#f8fafc">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem">
+                            <span style="font-weight:700; font-size:0.95rem">@rev.ReviewerName</span>
+                            <span style="color:#d97706; font-size:0.95rem">@(new string('★', rev.Rating))</span>
+                        </div>
+                        <div class="muted" style="font-size:0.82rem; margin-bottom:0.4rem">
+                            For purchase of <em>@rev.ProductTitle</em> • @MarketFormat.When(rev.CreatedAt)
+                        </div>
+                        <p style="margin-bottom:0; font-size:0.92rem; color:var(--ink)">@rev.Comment</p>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private User? seller;
+    private List<Product> sellerListings = [];
+    private List<Review> reviewsList = [];
+    private (double Average, int Count) rating = (0.0, 0);
+
+    protected override void OnParametersSet()
+    {
+        seller = Session.GetFullUser(Id);
+        if (seller != null)
+        {
+            sellerListings = Products.ForSeller(Id).Where(p => p.Status == ProductStatus.Active).ToList();
+            reviewsList = Reviews.GetReviewsForUser(Id);
+            rating = Reviews.GetSellerRating(Id);
+        }
+    }
+}

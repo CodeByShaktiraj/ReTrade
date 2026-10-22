@@ -1,0 +1,82 @@
+@page "/wishlist"
+@inject WishlistService WishlistSvc
+@inject DemoSession Session
+
+<PageTitle>My Wishlist — ReTrade</PageTitle>
+
+@if (!Session.IsAuthenticated)
+{
+    <div style="max-width: 520px; margin: 3rem auto; text-align: center;" class="detail-panel">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">❤️</div>
+        <h2>Sign In to View Wishlist</h2>
+        <p class="muted" style="margin-bottom: 1.5rem;">
+            Please sign in to view and manage your saved items and price watch list.
+        </p>
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+            <a href="login?returnUrl=wishlist" class="btn btn-primary">
+                🔑 Sign In to Continue
+            </a>
+            <a href="register" class="btn btn-outline">
+                Create an Account
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>My Wishlist & Saved Items</h1>
+            <p class="muted">Items saved under account <strong>@Session.Current.Name</strong>.</p>
+        </div>
+        <div>
+            <a class="btn btn-outline" href="marketplace">Browse Marketplace</a>
+        </div>
+    </div>
+
+    @if (savedItems.Count == 0)
+    {
+        <div class="state-box">
+            <div class="state-icon" aria-hidden="true">❤️</div>
+            <div class="state-title">No saved items in your wishlist</div>
+            <p class="state-text">
+                Found an item you like? Click the heart icon on any product card or details page to bookmark it here for later.
+            </p>
+            <div class="state-actions">
+                <a class="btn btn-primary" href="marketplace">Browse All Items</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var item in savedItems)
+            {
+                <div style="position:relative">
+                    <ProductCard Product="item" />
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<Product> savedItems = [];
+
+    protected override void OnInitialized()
+    {
+        Session.OnChange += StateHasChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Session.IsAuthenticated)
+        {
+            savedItems = WishlistSvc.GetUserWishlist(Session.Current.Id);
+        }
+        else
+        {
+            savedItems = [];
+        }
+    }
+}

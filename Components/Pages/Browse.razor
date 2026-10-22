@@ -1,0 +1,254 @@
+@page "/marketplace"
+@inject ProductService Products
+@inject CategoryService Categories
+
+<PageTitle>Browse Marketplace — ReTrade</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Browse Marketplace</h1>
+        <p class="muted">Search and filter second-hand listings by category, price, condition and location.</p>
+    </div>
+</div>
+
+<input type="checkbox" id="filter-drawer" class="drawer-toggle" />
+
+<div class="market-layout">
+    <aside class="filters" aria-label="Listing filters">
+        <h2>Filters</h2>
+
+        <div class="filter-group">
+            <label class="filter-title" for="filter-category">Category</label>
+            <select id="filter-category" class="form-select" @bind="category" @bind:after="OnFilterChange">
+                <option value="">All categories</option>
+                @foreach (var item in categoryList)
+                {
+                    <option value="@item">@item</option>
+                }
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-title" for="filter-city">Location</label>
+            <select id="filter-city" class="form-select" @bind="city" @bind:after="OnFilterChange">
+                <option value="">Anywhere</option>
+                @foreach (var item in cities)
+                {
+                    <option value="@item">@item</option>
+                }
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-title">Price (₹)</span>
+            <div class="field-row">
+                <input class="form-control" type="number" min="0" placeholder="Min"
+                       aria-label="Minimum price" @bind="minPrice" @bind:after="OnFilterChange" />
+                <input class="form-control" type="number" min="0" placeholder="Max"
+                       aria-label="Maximum price" @bind="maxPrice" @bind:after="OnFilterChange" />
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-title" for="filter-condition">Condition</label>
+            <select id="filter-condition" class="form-select" @bind="condition" @bind:after="OnFilterChange">
+                <option value="">Any condition</option>
+                @foreach (var item in Enum.GetValues<ProductCondition>())
+                {
+                    <option value="@item">@MarketFormat.Condition(item)</option>
+                }
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-title">Deal type</span>
+            <label class="form-check">
+                <input type="checkbox" @bind="tradeOnly" @bind:after="OnFilterChange" />
+                <span>Trade available</span>
+            </label>
+            <label class="form-check">
+                <input type="checkbox" @bind="negotiableOnly" @bind:after="OnFilterChange" />
+                <span>Negotiable price</span>
+            </label>
+        </div>
+
+        <div class="filter-actions">
+            <button class="btn btn-outline btn-block" @onclick="ClearFilters">Clear filters</button>
+            <label for="filter-drawer" class="btn btn-primary btn-block mobile-filter-toggle">Show results</label>
+        </div>
+    </aside>
+
+    <section class="results">
+        <div class="results-bar">
+            <label for="filter-drawer" class="btn btn-outline mobile-filter-toggle">Filters</label>
+
+            <input class="form-control" type="search" placeholder="Search in results..."
+                   aria-label="Search listings" @bind="text" @bind:event="oninput" @bind:after="OnFilterChange" />
+
+            <select class="form-select" aria-label="Sort listings" @bind="sort" @bind:after="Refresh">
+                <option value="newest">Newest first</option>
+                <option value="price-asc">Price: low to high</option>
+                <option value="price-desc">Price: high to low</option>
+            </select>
+
+            <span class="results-count">@results.Count items</span>
+        </div>
+
+        @if (results.Count == 0)
+        {
+            <div class="state-box">
+                <div class="state-icon" aria-hidden="true">🔍</div>
+                <div class="state-title">No listings match these filters</div>
+                <p class="state-text">Try a wider price range, another category, or clear your search filters.</p>
+                <div class="state-actions">
+                    <button class="btn btn-primary" @onclick="ClearFilters">Clear filters</button>
+                    <a class="btn btn-outline" href="sell">Sell an item</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="grid">
+                @foreach (var product in pagedResults)
+                {
+                    <ProductCard Product="product" />
+                }
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <nav class="pagination-bar" aria-label="Pagination" style="display:flex; justify-content:center; align-items:center; gap:0.4rem; margin-top:2rem">
+                    <button class="btn btn-outline btn-sm" disabled="@(currentPage <= 1)" @onclick="() => SetPage(currentPage - 1)">
+                        ← Prev
+                    </button>
+
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageNumber = i;
+                        <button class="btn @(currentPage == pageNumber ? "btn-primary" : "btn-outline") btn-sm"
+                                @onclick="() => SetPage(pageNumber)">
+                            @pageNumber
+                        </button>
+                    }
+
+                    <button class="btn btn-outline btn-sm" disabled="@(currentPage >= totalPages)" @onclick="() => SetPage(currentPage + 1)">
+                        Next →
+                    </button>
+                </nav>
+            }
+        }
+    </section>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? Q { get; set; }
+    [SupplyParameterFromQuery] public string? Category { get; set; }
+
+    private List<string> cities = [];
+    private List<string> categoryList = [];
+
+    private string text = "";
+    private string category = "";
+    private string city = "";
+    private string minPrice = "";
+    private string maxPrice = "";
+    private string condition = "";
+    private bool tradeOnly;
+    private bool negotiableOnly;
+    private string sort = "newest";
+
+    private List<Product> results = [];
+    private List<Product> pagedResults = [];
+
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages = 1;
+
+    private string? lastQuery;
+    private string? lastCategory;
+
+    protected override void OnParametersSet()
+    {
+        if (lastQuery != Q || lastCategory != Category)
+        {
+            text = Q ?? "";
+            category = Category ?? "";
+            lastQuery = Q;
+            lastCategory = Category;
+            currentPage = 1;
+        }
+
+        if (cities.Count == 0)
+            cities = Products.Cities();
+
+        if (categoryList.Count == 0)
+            categoryList = Categories.GetAllNames();
+
+        Refresh();
+    }
+
+    private void OnFilterChange()
+    {
+        currentPage = 1;
+        Refresh();
+    }
+
+    private void SetPage(int page)
+    {
+        currentPage = Math.Clamp(page, 1, Math.Max(1, totalPages));
+        UpdatePagedResults();
+    }
+
+    private void Refresh()
+    {
+        var query = new ListingQuery
+        {
+            Text = string.IsNullOrWhiteSpace(text) ? null : text,
+            Category = string.IsNullOrWhiteSpace(category) ? null : category,
+            City = string.IsNullOrWhiteSpace(city) ? null : city,
+            MinPrice = decimal.TryParse(minPrice, out var min) ? min : null,
+            MaxPrice = decimal.TryParse(maxPrice, out var max) ? max : null,
+            Condition = Enum.TryParse<ProductCondition>(condition, out var cond) ? cond : null,
+            TradeOnly = tradeOnly,
+            NegotiableOnly = negotiableOnly
+        };
+
+        results = Products.Search(query);
+
+        results = sort switch
+        {
+            "price-asc" => results.OrderBy(p => p.Price).ToList(),
+            "price-desc" => results.OrderByDescending(p => p.Price).ToList(),
+            _ => results.OrderByDescending(p => p.CreatedAt).ToList()
+        };
+
+        totalPages = (int)Math.Ceiling((double)results.Count / pageSize);
+        if (currentPage > totalPages && totalPages > 0)
+            currentPage = totalPages;
+
+        UpdatePagedResults();
+    }
+
+    private void UpdatePagedResults()
+    {
+        pagedResults = results
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+    }
+
+    private void ClearFilters()
+    {
+        text = "";
+        category = "";
+        city = "";
+        minPrice = "";
+        maxPrice = "";
+        condition = "";
+        tradeOnly = false;
+        negotiableOnly = false;
+        sort = "newest";
+        currentPage = 1;
+        Refresh();
+    }
+}

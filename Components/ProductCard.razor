@@ -1,0 +1,83 @@
+@inject WishlistService Wishlist
+@inject DemoSession Session
+
+<div class="product-card-wrap">
+    <a class="product-card" href="product/@Product.Id">
+        <div class="product-thumb">
+            @if (!string.IsNullOrWhiteSpace(Product.ImageUrl))
+            {
+                <img src="@Product.ImageUrl" alt="@Product.Title" loading="lazy" />
+            }
+            else
+            {
+                <span class="thumb-letter" aria-hidden="true">@Initial</span>
+            }
+
+            @if (Product.Status != ProductStatus.Active)
+            {
+                <span class="badge badge-sold">
+                    @MarketFormat.Status(Product.Status)
+                </span>
+            }
+
+            <button type="button" 
+                    class="wishlist-btn @(isWishlisted ? "active" : "")" 
+                    title="@(isWishlisted ? "Remove from saved items" : "Save to wishlist")"
+                    aria-label="@(isWishlisted ? "Remove from saved items" : "Save to wishlist")"
+                    @onclick="ToggleWishlist"
+                    @onclick:stopPropagation="true"
+                    @onclick:preventDefault="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="@(isWishlisted ? "#dc2626" : "none")" stroke="@(isWishlisted ? "#dc2626" : "#475569")" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="product-body">
+            <div class="badge-row">
+                @if (Product.TradeAvailable && Product.Status == ProductStatus.Active)
+                {
+                    <span class="badge badge-trade">Trade</span>
+                }
+                @if (Product.IsNegotiable && Product.Status == ProductStatus.Active)
+                {
+                    <span class="badge badge-negotiable">Negotiable</span>
+                }
+            </div>
+
+            <h3 class="product-title">@Product.Title</h3>
+
+            <div>
+                <span class="price">@MarketFormat.Inr(Product.Price)</span>
+                @if (Product.IsNegotiable && Product.Status == ProductStatus.Active)
+                {
+                    <span class="price-note">negotiable</span>
+                }
+            </div>
+
+            <div class="product-meta">
+                <span>@MarketFormat.Place(Product)</span>
+                <span>@MarketFormat.Condition(Product.Condition)</span>
+            </div>
+        </div>
+    </a>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Product Product { get; set; } = default!;
+
+    private bool isWishlisted;
+
+    protected override void OnParametersSet()
+    {
+        isWishlisted = Wishlist.IsWishlisted(Session.Current.Id, Product.Id);
+    }
+
+    private void ToggleWishlist()
+    {
+        isWishlisted = Wishlist.Toggle(Session.Current.Id, Product.Id);
+    }
+
+    private char Initial =>
+        string.IsNullOrWhiteSpace(Product.Title) ? '?' : char.ToUpperInvariant(Product.Title[0]);
+}
